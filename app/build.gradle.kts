@@ -3,36 +3,44 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "srmatta-release"
+val releaseKeystore = file("srmatta-release.jks")
+val hasReleaseSigning = !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank() && releaseKeystore.exists()
+
 android {
     namespace = "br.srmatta.treino"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "br.srmatta.treino"
-        minSdk = 23          // Android 6.0 ou superior (o J7 Prime 2 roda 7.1 / 8.1)
+        minSdk = 23
         targetSdk = 34
         versionCode = 8
-        versionName = "1.6.0"
+        versionName = "1.6.1"
     }
 
-    // Chave fixa: todo APK novo tem a mesma assinatura, então atualiza por cima sem perder dados.
     signingConfigs {
-        create("fixed") {
-            storeFile = file("srmatta.jks")
-            storePassword = "srmatta123"
-            keyAlias = "srmatta"
-            keyPassword = "srmatta123"
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            // R8 encolhe o código e os recursos: o APK final fica pequeno.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Assina com a chave fixa do projeto para o APK ser instalável direto no celular.
-            signingConfig = signingConfigs.getByName("fixed")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -44,7 +52,6 @@ android {
         jvmTarget = "17"
     }
 }
-
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
