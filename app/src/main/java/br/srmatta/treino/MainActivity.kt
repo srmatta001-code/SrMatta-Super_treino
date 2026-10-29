@@ -856,6 +856,24 @@ class MainActivity : Activity() {
                     gravity = Gravity.CENTER_VERTICAL
                 }
                 row.addView(label("${index + 1}. $exercise", 14f, C.text), params(w = 0, weight = 1f))
+                row.addView(smallButton("✎") {
+                    val field = styled(EditText(this), "Nome do exercício").apply { setText(ordered[index]) }
+                    AlertDialog.Builder(this)
+                        .setTitle("Editar nome do exercício")
+                        .setView(field)
+                        .setPositiveButton("Salvar") { _, _ ->
+                            val renamed = field.text.toString().trim().replace(Regex("\\s+"), " ")
+                            if (renamed.isBlank()) {
+                                toast("O nome não pode ficar vazio")
+                            } else {
+                                ordered[index] = renamed
+                                dialog?.dismiss()
+                                renderOrder()
+                            }
+                        }
+                        .setNegativeButton("Cancelar", null)
+                        .show()
+                }, params(w = dp(42), r = 4))
                 if (index > 0) {
                     row.addView(smallButton("↑") {
                         val item = ordered.removeAt(index)
