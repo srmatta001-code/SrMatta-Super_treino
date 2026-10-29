@@ -831,7 +831,7 @@ class MainActivity : Activity() {
                 row.addView(smallButton("×") {
                     if (ordered.size > 1) {
                         ordered.removeAt(index)
-                        dialog.dismiss()
+                        dialog?.dismiss()
                         renderOrder()
                     } else {
                         toast("A rotina precisa ter ao menos um exercício")
