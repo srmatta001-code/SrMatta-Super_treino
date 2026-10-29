@@ -1,0 +1,293 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f0c">
+  <meta name="description" content="SrMatta Super Treino: organize seus treinos e acompanhe sua evolução.">
+  <title>SrMatta Super Treino</title>
+  <style>
+    :root {
+      --bg: #0b0f0c;
+      --card: #151d17;
+      --green: #a3e635;
+      --text: #f5f7f4;
+      --muted: #b4c0b5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(ellipse at top, #263a20, var(--bg) 60%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { text-decoration: none; }
+
+    .container {
+      width: min(1050px, 92%);
+      margin: auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 0;
+      border-bottom: 1px solid #ffffff18;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: bold;
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--green);
+      color: #17210f;
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .github {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 85px 0 65px;
+    }
+
+    .tag {
+      display: inline-block;
+      color: var(--green);
+      border: 1px solid #526b3d;
+      border-radius: 30px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    h1 {
+      font-size: clamp(40px, 7vw, 72px);
+      line-height: 1.08;
+      margin: 24px 0 18px;
+      letter-spacing: -2px;
+    }
+
+    h1 span { color: var(--green); }
+
+    .description {
+      color: var(--muted);
+      max-width: 650px;
+      margin: 0 auto 30px;
+      font-size: 18px;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 14px 22px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+
+    .primary {
+      background: var(--green);
+      color: #17210f;
+    }
+
+    .secondary {
+      border: 1px solid #354339;
+      color: var(--text);
+      background: #ffffff08;
+    }
+
+    .small {
+      color: #89978b;
+      font-size: 12px;
+      margin-top: 15px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      padding-bottom: 75px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #29382d;
+      border-radius: 16px;
+      padding: 25px;
+    }
+
+    .icon { font-size: 30px; }
+
+    .card h2 { font-size: 19px; }
+
+    .card p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .download {
+      text-align: center;
+      padding: 40px 20px;
+      margin-bottom: 65px;
+      border: 1px solid #35472c;
+      border-radius: 20px;
+      background: linear-gradient(120deg, #192619, #111712);
+    }
+
+    .download h2 {
+      font-size: clamp(26px, 4vw, 38px);
+      margin: 0 0 10px;
+    }
+
+    .download p {
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 22px;
+    }
+
+    footer {
+      border-top: 1px solid #ffffff18;
+      padding: 25px 0;
+      color: #89978b;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 700px) {
+      .hero { padding: 60px 0 45px; }
+      .features { grid-template-columns: 1fr; }
+      header { gap: 10px; }
+      .github { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="container">
+    <div class="brand">
+      <div class="logo">S</div>
+      <span>SrMatta Super Treino</span>
+    </div>
+
+    <a class="github"
+       href="https://github.com/srmatta001-code/SrMatta-Super_treino"
+       target="_blank" rel="noopener">
+      Ver projeto no GitHub ↗
+    </a>
+  </header>
+
+  <main class="container">
+
+    <section class="hero">
+      <span class="tag">SEU TREINO. SUA EVOLUÇÃO.</span>
+
+      <h1>
+        Treine com foco.<br>
+        <span>Evolua sempre.</span>
+      </h1>
+
+      <p class="description">
+        Conheça o SrMatta Super Treino, um aplicativo para ajudar
+        você a organizar seus exercícios e acompanhar sua jornada
+        na musculação.
+      </p>
+
+      <div class="buttons">
+        <a class="button primary"
+           href="https://github.com/srmatta001-code/SrMatta-Super_treino/releases">
+          ↓ Baixar aplicativo
+        </a>
+
+        <a class="button secondary"
+           href="https://github.com/srmatta001-code/SrMatta-Super_treino">
+          Conhecer o projeto ↗
+        </a>
+      </div>
+
+      <p class="small">
+        Download gratuito · Android · Distribuição independente
+      </p>
+    </section>
+
+    <section class="features">
+
+      <article class="card">
+        <div class="icon">🏋️</div>
+        <h2>Organize seus treinos</h2>
+        <p>
+          Tenha seus exercícios e sessões de treino organizados
+          em um só lugar.
+        </p>
+      </article>
+
+      <article class="card">
+        <div class="icon">📈</div>
+        <h2>Acompanhe sua evolução</h2>
+        <p>
+          Registre seu progresso e acompanhe sua jornada
+          para manter a motivação.
+        </p>
+      </article>
+
+      <article class="card">
+        <div class="icon">📱</div>
+        <h2>No seu Android</h2>
+        <p>
+          Acesse as versões disponíveis e instale o aplicativo
+          no seu dispositivo Android.
+        </p>
+      </article>
+
+    </section>
+
+    <section class="download">
+      <h2>Seu próximo treino começa aqui.</h2>
+
+      <p>
+        Acesse a página de versões do SrMatta Super Treino.
+        Quando um APK estiver disponível, você poderá baixá-lo
+        gratuitamente.
+      </p>
+
+      <a class="button primary"
+         href="https://github.com/srmatta001-code/SrMatta-Super_treino/releases">
+        Acessar downloads ↗
+      </a>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      © 2026 SrMatta Super Treino · Projeto independente
+    </div>
+  </footer>
+
+</body>
+</html>
