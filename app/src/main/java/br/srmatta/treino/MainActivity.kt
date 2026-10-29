@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -239,21 +238,11 @@ class MainActivity : Activity() {
         tick()
     }
 
-    @Suppress("DEPRECATION")
-    private fun buzz() {
-        try {
-            val vib = getSystemService(VIBRATOR_SERVICE) as Vibrator
-            vib.vibrate(longArrayOf(0, 250, 120, 250), -1)
-        } catch (_: Exception) {
-        }
-    }
-
     private fun tick() {
         val now = SystemClock.elapsedRealtime()
         if (restEnd != 0L && now >= restEnd) {
             restEnd = 0L
             restDone = true
-            buzz()
         }
         restView?.let { v ->
             when {
