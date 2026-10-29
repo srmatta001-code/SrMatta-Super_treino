@@ -9,30 +9,45 @@ android {
 
     defaultConfig {
         applicationId = "br.srmatta.treino"
-        minSdk = 23          // Android 6.0 ou superior (o J7 Prime 2 roda 7.1 / 8.1)
+        minSdk = 23
         targetSdk = 34
         versionCode = 7
         versionName = "1.5.0"
     }
 
-    // Chave fixa: todo APK novo tem a mesma assinatura, então atualiza por cima sem perder dados.
-    signingConfigs {
-        create("fixed") {
-            storeFile = file("srmatta.jks")
-            storePassword = "srmatta123"
-            keyAlias = "srmatta"
-            keyPassword = "srmatta123"
+    // A assinatura é carregada por variáveis de ambiente; nenhuma senha fica no código.
+    val signingStoreFile = System.getenv("SIGNING_STORE_FILE")
+    val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+    val signingKeyAlias = System.getenv("SIGNING_KEY_ALIAS")
+    val signingKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+
+    if (!signingStoreFile.isNullOrBlank() &&
+        !signingStorePassword.isNullOrBlank() &&
+        !signingKeyAlias.isNullOrBlank() &&
+        !signingKeyPassword.isNullOrBlank()
+    ) {
+        signingConfigs {
+            create("fixed") {
+                storeFile = file(signingStoreFile)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            // R8 encolhe o código e os recursos: o APK final fica pequeno.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Assina com a chave fixa do projeto para o APK ser instalável direto no celular.
-            signingConfig = signingConfigs.getByName("fixed")
+            if (!signingStoreFile.isNullOrBlank() &&
+                !signingStorePassword.isNullOrBlank() &&
+                !signingKeyAlias.isNullOrBlank() &&
+                !signingKeyPassword.isNullOrBlank()
+            ) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
         }
     }
 
@@ -44,5 +59,3 @@ android {
         jvmTarget = "17"
     }
 }
-
-// Sem nenhuma biblioteca extra (nada de AndroidX): só o framework do Android.
