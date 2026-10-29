@@ -52,6 +52,7 @@ class MainActivity : Activity() {
     private var sessionStart = 0L
     internal var selectedEx: String? = null
     internal var summaryPhotoSessionId: Long = -1L
+    internal var pendingSummaryCameraPath: String? = null
 
     internal val prefs by lazy { getSharedPreferences("srmatta", MODE_PRIVATE) }
     private var restSecs: Int
@@ -99,8 +100,18 @@ class MainActivity : Activity() {
         if (resultCode == RESULT_OK && summaryPhotoSessionId > 0L) {
             when (requestCode) {
                 REQ_SUMMARY_GALLERY -> data?.data?.let { storeWorkoutPhoto(summaryPhotoSessionId, it) }
-                REQ_SUMMARY_CAMERA -> (data?.extras?.get("data") as? android.graphics.Bitmap)?.let {
-                    storeWorkoutPhoto(summaryPhotoSessionId, it)
+                REQ_SUMMARY_CAMERA -> {
+                    val path = pendingSummaryCameraPath
+                    val full = path?.let { java.io.File(it) }?.takeIf { it.exists() && it.length() > 0L }
+                    if (full != null) {
+                        val photo = android.graphics.BitmapFactory.decodeFile(full.absolutePath)
+                        if (photo != null) storeWorkoutPhoto(summaryPhotoSessionId, photo)
+                        pendingSummaryCameraPath = null
+                    } else {
+                        (data?.extras?.get("data") as? android.graphics.Bitmap)?.let {
+                            storeWorkoutPhoto(summaryPhotoSessionId, it)
+                        }
+                    }
                 }
             }
         }
