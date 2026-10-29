@@ -41,7 +41,7 @@ private val SOCIALS = listOf(
     Triple("Instagram", "@andreh_matta", "https://www.instagram.com/andreh_matta/")
 )
 private const val BAND = "Valandil"
-private val HOME_TABS = listOf("Resumo", "Medidas", "Exercícios", "Calendário", "Redes")
+private val HOME_TABS = listOf("Resumo", "Medidas", "Nutrição", "Suplementos", "Exercícios", "Calendário", "Redes")
 
 // ---------- Página ----------
 
@@ -77,8 +77,10 @@ fun MainActivity.homePage(): View = page("") {
     when (homeTab) {
         0 -> summaryInto(a)
         1 -> measuresInto(a)
-        2 -> exercisesInto(a)
-        3 -> addView(a.calendarCard())
+        2 -> a.nutritionInto(this)
+        3 -> a.supplementsInto(this)
+        4 -> exercisesInto(a)
+        5 -> addView(a.calendarCard())
         else -> socialInto(a)
     }
 }
@@ -254,6 +256,11 @@ private fun MainActivity.editProfile() {
         adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, sexOptions)
         setSelection(sexOptions.indexOf(prefs.getString("sex", "Prefiro não informar")).coerceAtLeast(0))
     }
+    val goalOptions = listOf("Perder gordura", "Ganhar massa muscular", "Recomposição corporal", "Manter o peso")
+    val goal = Spinner(this).apply {
+        adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, goalOptions)
+        setSelection(goalOptions.indexOf(prefs.getString("goal", goalOptions[0])).coerceAtLeast(0))
+    }
     val activityOptions = listOf(
         "Sedentário — pouco movimento",
         "Leve — exercício 1 a 3 dias/semana",
@@ -277,6 +284,8 @@ private fun MainActivity.editProfile() {
         addView(sex, params(h = dp(48), t = 4))
         addView(label("Altura (cm)", 13f, C.muted), params(t = 12))
         addView(height, params(h = dp(48), t = 6))
+        addView(label("Objetivo principal", 13f, C.muted), params(t = 12))
+        addView(goal, params(h = dp(56), t = 4))
         addView(label("Nível de atividade", 13f, C.muted), params(t = 12))
         addView(activity, params(h = dp(56), t = 4))
         addView(label("Seu peso é registrado na aba Medidas. Os dados ficam salvos neste aparelho.", 12f, C.muted), params(t = 12, b = 8))
@@ -298,6 +307,7 @@ private fun MainActivity.editProfile() {
                     .putString("birth", normalizeBirth(b) ?: "")
                     .putString("sex", sex.selectedItem.toString())
                     .putInt("height", hv)
+                    .putString("goal", goal.selectedItem.toString())
                     .putString("activity", activity.selectedItem.toString())
                     .apply()
                 show(HOME)
@@ -330,6 +340,7 @@ private fun MainActivity.assessmentCard(): LinearLayout {
     val heightCm = prefs.getInt("height", 0)
     val sex = prefs.getString("sex", "Prefiro não informar") ?: "Prefiro não informar"
     val activity = prefs.getString("activity", "Não informado") ?: "Não informado"
+    val goal = prefs.getString("goal", "Perder gordura") ?: "Perder gordura"
     val last = db.bodyAll().lastOrNull()
 
     c.addView(label(if (name.isNotEmpty()) "Olá, $name" else "Complete seus dados para começar", 18f, C.text, true), params(t = 8))
@@ -369,7 +380,8 @@ private fun MainActivity.assessmentCard(): LinearLayout {
             c.addView(label("Informe sua altura para calcular o IMC.", 12f, C.muted), params(t = 4))
         }
     }
-    c.addView(label("Atividade: ${activity.substringBefore(" —")}", 12f, C.muted), params(t = 8))
+    c.addView(label("Objetivo: $goal", 13f, C.blueLight, true), params(t = 8))
+    c.addView(label("Atividade: ${activity.substringBefore(" —")}", 12f, C.muted), params(t = 4))
     c.addView(label("O IMC é uma referência inicial; não mede diretamente gordura ou massa muscular.", 11f, C.muted), params(t = 8))
     val actions = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
