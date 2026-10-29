@@ -11,8 +11,8 @@ android {
         applicationId = "br.srmatta.treino"
         minSdk = 23          // Android 6.0 ou superior (o J7 Prime 2 roda 7.1 / 8.1)
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.4.0"
     }
 
     // Chave fixa: todo APK novo tem a mesma assinatura, então atualiza por cima sem perder dados.
