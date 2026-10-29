@@ -198,15 +198,15 @@ class WorkoutTimerService : Service() {
             val open = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             val pending = PendingIntent.getActivity(this, 3, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ALERT) else Notification.Builder(this)
-            val alert = b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            val alertBuilder = b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("Descanso concluído!")
                 .setContentText("Hora da próxima série. Toque para voltar ao treino.")
                 .setContentIntent(pending)
                 .setAutoCancel(true)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .build()
-            manager.notify(ALERT_ID, alert)
+            if (Build.VERSION.SDK_INT < 26) alertBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            manager.notify(ALERT_ID, alertBuilder.build())
             try {
                 val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
                 val pattern = longArrayOf(0, 500, 250, 500, 250, 700)
