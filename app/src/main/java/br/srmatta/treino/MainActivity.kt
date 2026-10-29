@@ -212,6 +212,11 @@ class MainActivity : Activity() {
     }
 
     private fun startRest() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 410)
+        }
         val endWall = System.currentTimeMillis() + restSecs * 1000L
         restEnd = SystemClock.elapsedRealtime() + restSecs * 1000L
         restDone = false
