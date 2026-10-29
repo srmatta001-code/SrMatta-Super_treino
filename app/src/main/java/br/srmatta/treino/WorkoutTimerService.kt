@@ -9,6 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.VibratorManager
 import android.media.session.MediaSession
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
@@ -34,7 +37,7 @@ class WorkoutTimerService : Service() {
         const val PREF_REST_END = "rest_end_elapsed"
         const val PREF_REST_DONE = "rest_done"
         private const val CHANNEL_TIMER = "workout_timer"
-        private const val CHANNEL_ALERT = "workout_alert_v2"
+        private const val CHANNEL_ALERT = "workout_alert_v3_srmatta"
         private const val NOTIFICATION_ID = 4810
         private const val ALERT_ID = 4811
     }
@@ -44,6 +47,7 @@ class WorkoutTimerService : Service() {
     private lateinit var mediaSession: MediaSession
     private val prefs by lazy { getSharedPreferences("srmatta", Context.MODE_PRIVATE) }
     private var sessionStart = 0L
+    private var toneGenerator: ToneGenerator? = null
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -142,14 +146,12 @@ class WorkoutTimerService : Service() {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setShowBadge(false)
             }
-            val alert = NotificationChannel(CHANNEL_ALERT, "Alarme de descanso", NotificationManager.IMPORTANCE_HIGH).apply {
+            val alert = NotificationChannel(CHANNEL_ALERT, "Alarme de descanso SrMatta", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Aviso sonoro, vibração e popup ao terminar o descanso"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 500, 250, 500, 250, 700)
-                val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                setSound(sound, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                setSound(null, null) // O toque personalizado é reproduzido pelo serviço; não usar o alarme padrão.
             }
             manager.createNotificationChannel(timer)
             manager.createNotificationChannel(alert)
@@ -164,7 +166,8 @@ class WorkoutTimerService : Service() {
         val line = if (remain > 0) "Descanso: ${clock(remain)}  •  Treino: ${clock(elapsed)}"
             else "Treino: ${clock(elapsed)}  •  Descanso: —"
         val open = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            putExtra("open_active_workout", true)
         }
         val openPending = PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = Intent(this, WorkoutTimerService::class.java).setAction(ACTION_STOP)
@@ -195,7 +198,10 @@ class WorkoutTimerService : Service() {
         val end = prefs.getLong(PREF_REST_END, 0L)
         if (end > 0L && SystemClock.elapsedRealtime() >= end) {
             prefs.edit().putLong(PREF_REST_END, 0L).putBoolean(PREF_REST_DONE, true).apply()
-            val open = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val open = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("open_active_workout", true)
+            }
             val pending = PendingIntent.getActivity(this, 3, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ALERT) else Notification.Builder(this)
             val alertBuilder = b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -207,11 +213,26 @@ class WorkoutTimerService : Service() {
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
             if (Build.VERSION.SDK_INT < 26) alertBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
             manager.notify(ALERT_ID, alertBuilder.build())
+            // Toque eletrônico original e vibração acionados diretamente pelo serviço.
             try {
-                val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-                val pattern = longArrayOf(0, 500, 250, 500, 250, 700)
-                if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
-                else vibrator.vibrate(pattern, -1)
+                if (toneGenerator == null) toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 90)
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 1100)
+            } catch (_: Exception) { }
+            try {
+                val vibrator = if (Build.VERSION.SDK_INT >= 31) {
+                    (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    getSystemService(VIBRATOR_SERVICE) as Vibrator
+                }
+                if (vibrator.hasVibrator()) {
+                    val pattern = longArrayOf(0, 450, 180, 450, 180, 650)
+                    if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+                    else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(pattern, -1)
+                    }
+                }
             } catch (_: Exception) { }
         }
     }
@@ -235,6 +256,8 @@ class WorkoutTimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(ticker)
+        toneGenerator?.release()
+        toneGenerator = null
         if (::mediaSession.isInitialized) {
             mediaSession.isActive = false
             mediaSession.release()
