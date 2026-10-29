@@ -25,26 +25,36 @@ object Coach {
      * entre 8 e 11 → mesma carga, uma repetição a mais; abaixo de 8 → consolidar 8 reps.
      * [last] são as séries (repetições, carga) do último treino do exercício.
      */
-    fun suggest(last: List<Pair<Int, Double>>, muscle: String?): Suggestion? {
+    fun suggest(last: List<Pair<Int, Double>>, muscle: String?, level: String = "Iniciante"): Suggestion? {
         if (last.isEmpty()) return null
         val top = last.maxOf { it.second }
         val minReps = last.filter { it.second == top }.minOf { it.first }
+        val lower = when (level) {
+            "Avançado" -> 6
+            "Intermediário" -> 8
+            else -> 10
+        }
+        val upper = when (level) {
+            "Avançado" -> 10
+            else -> 12
+        }
         if (top == 0.0) {
-            return Suggestion(0.0, minReps + 1, "Peso do corpo: tente ${minReps + 1} repetições em cada série.")
+            return Suggestion(0.0, (minReps + 1).coerceAtMost(upper),
+                "Peso corporal: use o histórico como referência e avance gradualmente.")
         }
         val step = if ((muscle == "Pernas" || muscle == "Costas") && top >= 60.0) 5.0 else 2.5
         return when {
-            minReps >= 12 -> Suggestion(
-                top + step, 8,
-                "Você fez $minReps repetições em todas as séries com ${kg(top)} kg. Hora de subir a carga."
+            minReps >= upper -> Suggestion(
+                top + step, lower,
+                "Você atingiu o topo da faixa ($upper reps) nas séries registradas. Considere testar a próxima carga com técnica controlada."
             )
-            minReps >= 8 -> Suggestion(
+            minReps >= lower -> Suggestion(
                 top, minReps + 1,
-                "Mantenha ${kg(top)} kg e tente 1 repetição a mais em cada série."
+                "Mantenha ${kg(top)} kg e tente uma repetição a mais, sem perder a execução."
             )
             else -> Suggestion(
-                top, 8,
-                "Fique em ${kg(top)} kg até chegar em 8 repetições em todas as séries."
+                top, lower,
+                "Consolide pelo menos $lower repetições com ${kg(top)} kg antes de pensar em aumentar a carga."
             )
         }
     }
