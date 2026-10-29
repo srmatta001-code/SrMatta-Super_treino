@@ -11,8 +11,8 @@ android {
         applicationId = "br.srmatta.treino"
         minSdk = 23
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.6.0"
+        versionCode = 9
+        versionName = "1.7.0"
     }
 
     // A assinatura é carregada por variáveis de ambiente; nenhuma senha fica no código.
@@ -58,4 +58,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
 }
