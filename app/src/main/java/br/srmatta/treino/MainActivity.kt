@@ -384,7 +384,7 @@ class MainActivity : Activity() {
         fun refreshSuggestion() {
             val name = ex.text.toString().trim()
             suggestion = if (name.isEmpty()) null
-            else Coach.suggest(db.lastSessionSets(name), Muscles.of(name, customMuscles))
+            else Coach.suggest(db.lastSessionSets(name), Muscles.of(name, customMuscles), prefs.getString("training_level", "Iniciante") ?: "Iniciante")
             val s = suggestion
             if (s == null) {
                 sug.visibility = View.GONE
@@ -429,6 +429,7 @@ class MainActivity : Activity() {
             }, params(b = 12))
         }
 
+        addView(label("Padrão inicial: 3 séries de 10 repetições. Você pode ajustar cada série individualmente.", 12f, C.muted), params(b = 8))
         addView(card().apply {
             addView(label("Exercício", 13f, C.muted))
             addView(ex, params(t = 6, h = dp(48)))
