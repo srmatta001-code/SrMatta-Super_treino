@@ -118,6 +118,13 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "srmatta.db", null, 3) {
         writableDatabase.delete("sets", "id=?", arrayOf(id.toString()))
     }
 
+    fun updateSet(id: Long, reps: Int, weight: Double) {
+        writableDatabase.update("sets", ContentValues().apply {
+            put("reps", reps)
+            put("weight", weight)
+        }, "id=?", arrayOf(id.toString()))
+    }
+
     private fun readSet(c: Cursor) =
         SetRow(c.getLong(0), c.getLong(1), c.getString(2), c.getInt(3), c.getDouble(4))
 
@@ -141,6 +148,18 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "srmatta.db", null, 3) {
         query("SELECT DISTINCT exercise FROM sets ORDER BY exercise COLLATE NOCASE") { it.getString(0) }
 
     // ---------- Histórico ----------
+
+    fun summary(id: Long): Summary? =
+        query(
+            "SELECT s.id, s.started, s.ended, COUNT(t.id), COALESCE(SUM(t.reps * t.weight), 0), " +
+                "COUNT(DISTINCT t.exercise), COALESCE(GROUP_CONCAT(DISTINCT t.exercise), ''), s.kind " +
+                "FROM session s LEFT JOIN sets t ON t.session_id = s.id " +
+                "WHERE s.id=? AND s.ended IS NOT NULL GROUP BY s.id",
+            arrayOf(id.toString())
+        ) {
+            Summary(it.getLong(0), it.getLong(1), it.getLong(2), it.getInt(3), it.getDouble(4),
+                it.getInt(5), it.getString(6), if (it.isNull(7)) null else it.getString(7))
+        }.firstOrNull()
 
     fun history(limit: Int = 200): List<Summary> =
         query(

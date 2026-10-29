@@ -1,13 +1,13 @@
 package br.srmatta.treino
 
 import android.app.Activity
+import android.content.Intent
 import android.app.AlertDialog
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -48,8 +48,11 @@ class MainActivity : Activity() {
     private var restDone = false
     private var restView: TextView? = null
     private var elapsedView: TextView? = null
+    internal var timerBar: LinearLayout? = null
     private var sessionStart = 0L
     internal var selectedEx: String? = null
+    internal var summaryPhotoSessionId: Long = -1L
+    internal var pendingSummaryCameraPath: String? = null
 
     internal val prefs by lazy { getSharedPreferences("srmatta", MODE_PRIVATE) }
     private var restSecs: Int
@@ -84,6 +87,8 @@ class MainActivity : Activity() {
         }
         content = FrameLayout(this)
         root.addView(content, LinearLayout.LayoutParams(MP, 0, 1f))
+        timerBar = buildTimerBar()
+        root.addView(timerBar, LinearLayout.LayoutParams(MP, WRAP))
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
         show(HOME)
@@ -92,16 +97,61 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_PHOTO && resultCode == RESULT_OK) data?.data?.let { savePhoto(it) }
+        if (resultCode == RESULT_OK && summaryPhotoSessionId > 0L) {
+            when (requestCode) {
+                REQ_SUMMARY_GALLERY -> data?.data?.let { storeWorkoutPhoto(summaryPhotoSessionId, it) }
+                REQ_SUMMARY_CAMERA -> {
+                    val path = pendingSummaryCameraPath
+                    val full = path?.let { java.io.File(it) }?.takeIf { it.exists() && it.length() > 0L }
+                    if (full != null) {
+                        val photo = android.graphics.BitmapFactory.decodeFile(full.absolutePath)
+                        if (photo != null) storeWorkoutPhoto(summaryPhotoSessionId, photo)
+                        pendingSummaryCameraPath = null
+                    } else {
+                        (data?.extras?.get("data") as? android.graphics.Bitmap)?.let {
+                            storeWorkoutPhoto(summaryPhotoSessionId, it)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        restoreRestTimer()
+        if (restEnd > 0L) startRestService(prefs.getLong("rest_end_wall", 0L))
         handler.post(ticker)
     }
 
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(ticker)
+    }
+
+
+    /** Faixa fixa de cronômetros: permanece visível ao navegar pelas abas. */
+    private fun buildTimerBar(): LinearLayout {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setBackgroundColor(C.card)
+            visibility = View.GONE
+        }
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        left.addView(label("TEMPO DE TREINO", 10f, C.muted, true))
+        elapsedView = label("00:00", 22f, C.text, true)
+        left.addView(elapsedView)
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+        }
+        right.addView(label("DESCANSO", 10f, C.muted, true))
+        restView = label("—", 22f, C.purpleLight, true)
+        right.addView(restView)
+        bar.addView(left, params(w = 0, weight = 1f))
+        bar.addView(right, params(w = 0, weight = 1f))
+        return bar
     }
 
     // ---------- Navegação ----------
@@ -126,8 +176,6 @@ class MainActivity : Activity() {
     }
 
     internal fun show(i: Int) {
-        restView = null
-        elapsedView = null
         content.removeAllViews()
         val v = when (i) {
             0 -> trainPage()
@@ -137,6 +185,9 @@ class MainActivity : Activity() {
             else -> homePage()
         }
         content.addView(v, FrameLayout.LayoutParams(MP, MP))
+        val open = db.openSession()
+        timerBar?.visibility = if (open == null) View.GONE else View.VISIBLE
+        if (open != null) sessionStart = open.started
         navTabs.forEachIndexed { k, t ->
             t.setTextColor(if (NAV_IDS[k] == i) C.blueLight else C.muted)
             t.typeface = if (NAV_IDS[k] == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -166,31 +217,49 @@ class MainActivity : Activity() {
 
     // ---------- Cronômetros ----------
 
+    private fun restoreRestTimer() {
+        val endWall = prefs.getLong("rest_end_wall", 0L)
+        val remaining = endWall - System.currentTimeMillis()
+        restEnd = if (remaining > 0L) SystemClock.elapsedRealtime() + remaining else 0L
+        restDone = prefs.getBoolean("rest_done", false)
+    }
+
+    private fun startRestService(endWall: Long) {
+        val intent = Intent(this, RestTimerService::class.java)
+            .setAction(RestTimerService.ACTION_START)
+            .putExtra(RestTimerService.EXTRA_END_AT, endWall)
+        if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+    }
+
     private fun startRest() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 410)
+        }
+        val endWall = System.currentTimeMillis() + restSecs * 1000L
         restEnd = SystemClock.elapsedRealtime() + restSecs * 1000L
         restDone = false
+        prefs.edit().putLong("rest_end_wall", endWall).putBoolean("rest_done", false).apply()
+        startRestService(endWall)
         tick()
     }
 
     private fun adjustRest(deltaSec: Int) {
         if (restEnd == 0L) return
         restEnd += deltaSec * 1000L
+        val endWall = System.currentTimeMillis() + (restEnd - SystemClock.elapsedRealtime())
+        prefs.edit().putLong("rest_end_wall", endWall).apply()
+        startRestService(endWall)
         tick()
     }
 
     private fun stopRest() {
         restEnd = 0L
         restDone = false
+        prefs.edit().putLong("rest_end_wall", 0L).putBoolean("rest_done", false).apply()
+        startService(Intent(this, RestTimerService::class.java).setAction(RestTimerService.ACTION_STOP))
         tick()
-    }
-
-    @Suppress("DEPRECATION")
-    private fun buzz() {
-        try {
-            val vib = getSystemService(VIBRATOR_SERVICE) as Vibrator
-            vib.vibrate(longArrayOf(0, 250, 120, 250), -1)
-        } catch (_: Exception) {
-        }
     }
 
     private fun tick() {
@@ -198,7 +267,6 @@ class MainActivity : Activity() {
         if (restEnd != 0L && now >= restEnd) {
             restEnd = 0L
             restDone = true
-            buzz()
         }
         restView?.let { v ->
             when {
@@ -275,24 +343,6 @@ class MainActivity : Activity() {
         val sets = db.setsOf(s.id)
 
         // Cronômetros: tempo de treino e descanso.
-        val timers = card().apply { orientation = LinearLayout.HORIZONTAL }
-        val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        left.addView(label("Tempo de treino", 12f, C.muted))
-        val ev = label("00:00", 26f, C.text, true)
-        elapsedView = ev
-        left.addView(ev)
-        val right = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.END
-        }
-        right.addView(label("Descanso", 12f, C.muted))
-        val rv = label("—", 26f, C.muted, true)
-        restView = rv
-        right.addView(rv)
-        timers.addView(left, params(w = 0, weight = 1f))
-        timers.addView(right, params(w = 0, weight = 1f))
-        addView(timers, params(t = 10, b = 8))
-
         val controls = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         controls.addView(smallButton("−15 s") { adjustRest(-15) }, params(w = 0, weight = 1f, r = 6))
         controls.addView(smallButton("+15 s") { adjustRest(15) }, params(w = 0, weight = 1f, r = 6))
@@ -345,7 +395,7 @@ class MainActivity : Activity() {
         fun refreshSuggestion() {
             val name = ex.text.toString().trim()
             suggestion = if (name.isEmpty()) null
-            else Coach.suggest(db.lastSessionSets(name), Muscles.of(name, customMuscles))
+            else Coach.suggest(db.lastSessionSets(name), Muscles.of(name, customMuscles), prefs.getString("training_level", "Iniciante") ?: "Iniciante")
             val s = suggestion
             if (s == null) {
                 sug.visibility = View.GONE
@@ -390,6 +440,7 @@ class MainActivity : Activity() {
             }, params(b = 12))
         }
 
+        addView(label("Padrão inicial: 3 séries de 10 repetições. Você pode ajustar cada série individualmente.", 12f, C.muted), params(b = 8))
         addView(card().apply {
             addView(label("Exercício", 13f, C.muted))
             addView(ex, params(t = 6, h = dp(48)))
@@ -414,6 +465,7 @@ class MainActivity : Activity() {
                         }
                         row.addView(label("${i + 1}ª série", 14f, C.muted), params(w = dp(84)))
                         row.addView(label("${fmtNum(st.weight)} kg × ${st.reps}", 16f, C.text, true), params(w = 0, weight = 1f))
+                        row.addView(smallButton("Editar") { editSet(st) }, params(r = 6))
                         row.addView(label("×", 24f, C.danger, true).apply {
                             setPadding(dp(14), dp(2), dp(4), dp(2))
                             setOnClickListener {
@@ -473,6 +525,39 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun editSet(set: SetRow) {
+        val weight = styled(EditText(this), "Carga em kg").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(fmtInput(set.weight))
+        }
+        val reps = styled(EditText(this), "Repetições").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(set.reps.toString())
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(label(set.exercise, 14f, C.blueLight, true))
+            addView(weight, params(h = dp(48), t = 8))
+            addView(reps, params(h = dp(48), t = 8))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Editar série")
+            .setView(box)
+            .setPositiveButton("Salvar") { _, _ ->
+                val kg = parseNum(weight.text.toString())
+                val count = reps.text.toString().toIntOrNull()
+                if (kg == null || kg < 0 || count == null || count <= 0) {
+                    toast("Confira carga e repetições")
+                } else {
+                    db.updateSet(set.id, count, kg)
+                    show(0)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun confirmFinish(id: Long, nSets: Int) {
         val msg = if (nSets == 0) "Nenhuma série registrada. O treino será descartado."
         else "Salvar este treino com ${plural(nSets, "série", "séries")}?"
@@ -483,7 +568,7 @@ class MainActivity : Activity() {
                 db.endSession(id)
                 activeRoutine = -1L
                 stopRest()
-                show(2)
+                if (nSets > 0) showWorkoutSummary(id) else show(2)
             }
             .setNegativeButton("Continuar", null)
             .show()
@@ -732,12 +817,14 @@ class MainActivity : Activity() {
     private fun pickExercises(r: Routine?, name: String, extra: List<String> = emptyList()) {
         val all = (DEFAULT_EXERCISES + db.exerciseNames() + (r?.exercises ?: emptyList()) + extra)
             .distinctBy { it.trim().lowercase() }
-        val chosen = (r?.exercises.orEmpty() + extra).map { it.lowercase() }.toSet()
+        val chosen = (if (extra.isNotEmpty()) extra else r?.exercises.orEmpty())
+            .map { it.trim().lowercase() }.toSet()
         val checked = BooleanArray(all.size) { all[it].lowercase() in chosen }
         AlertDialog.Builder(this)
             .setTitle("Exercícios de $name")
             .setMultiChoiceItems(all.toTypedArray(), checked) { _, i, c -> checked[i] = c }
             .setNeutralButton("Adicionar exercício") { _, _ ->
+                val selectedBeforeAdding = all.filterIndexed { i, _ -> checked[i] }
                 val field = styled(EditText(this), "Nome do novo exercício")
                 field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 AlertDialog.Builder(this)
@@ -746,7 +833,7 @@ class MainActivity : Activity() {
                     .setPositiveButton("Adicionar") { _, _ ->
                         val value = field.text.toString().trim().replace(Regex("\\s+"), " ")
                         if (value.isBlank()) toast("Digite o nome do exercício")
-                        else pickExercises(r, name, extra + value)
+                        else pickExercises(r, name, (selectedBeforeAdding + extra + value).distinctBy { it.trim().lowercase() })
                     }
                     .setNegativeButton("Cancelar", null)
                     .show()
@@ -756,12 +843,89 @@ class MainActivity : Activity() {
                 if (picked.isEmpty()) {
                     toast("Escolha ao menos um exercício")
                 } else {
-                    db.saveRoutine(r?.id, name, picked)
-                    show(1)
+                    orderRoutineExercises(r, name, picked)
                 }
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+
+    /** Permite reorganizar e remover exercícios antes de salvar a rotina. */
+    private fun orderRoutineExercises(r: Routine?, name: String, initial: List<String>) {
+        val ordered = initial.toMutableList()
+        fun renderOrder() {
+            val scroll = ScrollView(this)
+            val rows = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+            }
+            var dialog: AlertDialog? = null
+            ordered.forEachIndexed { index, exercise ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                row.addView(label("${index + 1}. $exercise", 14f, C.text), params(w = 0, weight = 1f))
+                row.addView(smallButton("✎") {
+                    val field = styled(EditText(this), "Nome do exercício").apply { setText(ordered[index]) }
+                    AlertDialog.Builder(this)
+                        .setTitle("Editar nome do exercício")
+                        .setView(field)
+                        .setPositiveButton("Salvar") { _, _ ->
+                            val renamed = field.text.toString().trim().replace(Regex("\\s+"), " ")
+                            if (renamed.isBlank()) {
+                                toast("O nome não pode ficar vazio")
+                            } else {
+                                ordered[index] = renamed
+                                dialog?.dismiss()
+                                renderOrder()
+                            }
+                        }
+                        .setNegativeButton("Cancelar", null)
+                        .show()
+                }, params(w = dp(42), r = 4))
+                if (index > 0) {
+                    row.addView(smallButton("↑") {
+                        val item = ordered.removeAt(index)
+                        ordered.add(index - 1, item)
+                        dialog?.dismiss()
+                        renderOrder()
+                    }, params(w = dp(42), r = 4))
+                }
+                if (index < ordered.lastIndex) {
+                    row.addView(smallButton("↓") {
+                        val item = ordered.removeAt(index)
+                        ordered.add(index + 1, item)
+                        dialog?.dismiss()
+                        renderOrder()
+                    }, params(w = dp(42), r = 4))
+                }
+                row.addView(smallButton("×") {
+                    if (ordered.size > 1) {
+                        ordered.removeAt(index)
+                        dialog?.dismiss()
+                        renderOrder()
+                    } else {
+                        toast("A rotina precisa ter ao menos um exercício")
+                    }
+                }, params(w = dp(42)))
+                rows.addView(row, params(t = 4, b = 4))
+            }
+            scroll.addView(rows)
+            dialog = AlertDialog.Builder(this)
+                .setTitle("Ordem dos exercícios — $name")
+                .setView(scroll)
+                .setPositiveButton("Salvar rotina") { _, _ ->
+                    db.saveRoutine(r?.id, name, ordered)
+                    show(1)
+                }
+                .setNegativeButton("Voltar aos exercícios") { _, _ ->
+                    pickExercises(r, name, ordered.toList())
+                }
+                .show()
+        }
+        renderOrder()
     }
 
     // ---------- Músculos ----------
