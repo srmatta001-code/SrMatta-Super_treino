@@ -266,6 +266,11 @@ fun MainActivity.editProfile() {
         adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, dayOptions)
         setSelection((prefs.getInt("training_days", 3) - 2).coerceIn(0, dayOptions.lastIndex))
     }
+    val levelOptions = listOf("Iniciante", "Intermediário", "Avançado")
+    val level = Spinner(this).apply {
+        adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, levelOptions)
+        setSelection(levelOptions.indexOf(prefs.getString("training_level", "Iniciante")).coerceAtLeast(0))
+    }
     val activityOptions = listOf(
         "Sedentário — pouco movimento",
         "Leve — exercício 1 a 3 dias/semana",
@@ -293,6 +298,8 @@ fun MainActivity.editProfile() {
         addView(goal, params(h = dp(56), t = 4))
         addView(label("Dias disponíveis para treinar", 13f, C.muted), params(t = 12))
         addView(trainingDays, params(h = dp(56), t = 4))
+        addView(label("Nível de treino", 13f, C.muted), params(t = 12))
+        addView(level, params(h = dp(56), t = 4))
         addView(label("Nível de atividade", 13f, C.muted), params(t = 12))
         addView(activity, params(h = dp(56), t = 4))
         addView(label("Seu peso é registrado na aba Medidas. Os dados ficam salvos neste aparelho.", 12f, C.muted), params(t = 12, b = 8))
@@ -316,6 +323,7 @@ fun MainActivity.editProfile() {
                     .putInt("height", hv)
                     .putString("goal", goal.selectedItem.toString())
                     .putInt("training_days", trainingDays.selectedItemPosition + 2)
+                    .putString("training_level", level.selectedItem.toString())
                     .putString("activity", activity.selectedItem.toString())
                     .apply()
                 show(HOME)
