@@ -201,7 +201,7 @@ class WorkoutTimerService : Service() {
                 val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
                 val pattern = longArrayOf(0, 500, 250, 500, 250, 700)
                 if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
-                else @Suppress("DEPRECATION") vibrator.vibrate(pattern, -1)
+                else vibrator.vibrate(pattern, -1)
             } catch (_: Exception) { }
         }
     }
