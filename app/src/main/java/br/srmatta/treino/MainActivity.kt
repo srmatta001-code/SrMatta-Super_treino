@@ -2,6 +2,13 @@ package br.srmatta.treino
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
@@ -33,8 +40,8 @@ import kotlin.math.max
 
 const val HOME = 4
 const val REQ_PHOTO = 41
-/** Ordem das abas na barra: Início, Treino, Rotinas, Histórico, Evolução. */
-val NAV_IDS = listOf(HOME, 0, 1, 2, 3)
+/** Ordem das abas na barra: Início, Treino, Rotinas, Histórico, Evolução, Ajuda. */
+val NAV_IDS = listOf(HOME, 0, 1, 2, 3, 5)
 
 class MainActivity : Activity() {
 
@@ -90,9 +97,17 @@ class MainActivity : Activity() {
         root.addView(buildTimerBar(), LinearLayout.LayoutParams(MP, WRAP))
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
-        show(HOME)
+        show(if (intent.getBooleanExtra("open_active_workout", false) && db.openSession() != null) 0 else HOME)
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7001)
         if (db.openSession() != null) startWorkoutTimerService()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("open_active_workout", false) && db.openSession() != null) {
+            show(0)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
@@ -117,7 +132,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(C.card)
         }
-        val names = listOf("Início", "Treino", "Rotinas", "Histórico", "Evolução")
+        val names = listOf("Início", "Treino", "Rotinas", "Histórico", "Evolução", "Ajuda")
         navTabs = names.mapIndexed { k, n ->
             TextView(this).apply {
                 text = n
@@ -140,6 +155,7 @@ class MainActivity : Activity() {
             1 -> routinesPage()
             2 -> historyPage()
             3 -> progressPage()
+            5 -> helpPage()
             else -> homePage()
         }
         content.addView(v, FrameLayout.LayoutParams(MP, MP))
@@ -846,4 +862,114 @@ class MainActivity : Activity() {
         }
         return c
     }
+
+    // ---------- Ajuda, versão e atualizações ----------
+
+    private fun helpPage(): View = page("Ajuda") {
+        addView(card().apply {
+            addView(label("SrMatta Super Treino", 17f, C.text, true))
+            addView(label("Versão ${BuildConfig.VERSION_NAME} (código ${BuildConfig.VERSION_CODE})", 14f, C.muted), params(t = 8))
+            addView(label("Confira se existe uma versão mais recente do aplicativo.", 13f, C.muted), params(t = 8))
+            addView(primaryButton("Verificar atualizações") { checkForUpdates() }, params(t = 14))
+        }, params(t = 12, b = 12))
+
+        addView(card().apply {
+            addView(label("Alarme de descanso", 16f, C.text, true))
+            addView(label("O aviso usa um toque eletrônico próprio SrMatta e vibração quando o descanso termina.", 13f, C.muted), params(t = 8))
+        }, params(b = 12))
+
+        addView(card().apply {
+            addView(label("Contato", 16f, C.text, true))
+            addView(secondaryButton("Ajuda por e-mail") { sendSupportEmail("Ajuda - SrMatta Super Treino") }, params(t = 10))
+            addView(secondaryButton("Suporte por e-mail") { sendSupportEmail("Suporte - SrMatta Super Treino") }, params(t = 8))
+            addView(label("srmatta001@gmail.com", 13f, C.muted), params(t = 8))
+        }, params(b = 12))
+    }
+
+    private fun sendSupportEmail(subject: String) {
+        val mail = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:srmatta001@gmail.com")).apply {
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+        }
+        try { startActivity(mail) } catch (_: Exception) { toast("Nenhum aplicativo de e-mail encontrado.") }
+    }
+
+    private fun checkForUpdates() {
+        toast("Verificando atualizações…")
+        Thread {
+            try {
+                val connection = (URL("https://api.github.com/repos/srmatta001-code/SrMatta-Super_treino/releases/latest").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                    setRequestProperty("User-Agent", "SrMatta-Super-Treino")
+                }
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val release = JSONObject(response)
+                val body = release.optString("body")
+                val remoteCode = Regex("versionCode\\s*=\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: throw IllegalStateException("A publicação não informou o código da versão.")
+                val assets = release.getJSONArray("assets")
+                var apkUrl: String? = null
+                for (i in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(i)
+                    if (asset.optString("name") == "SrMattaTreino.apk") apkUrl = asset.optString("browser_download_url")
+                }
+                if (apkUrl.isNullOrBlank()) throw IllegalStateException("APK não encontrado na publicação.")
+                runOnUiThread {
+                    if (remoteCode > BuildConfig.VERSION_CODE) {
+                        AlertDialog.Builder(this)
+                            .setTitle("Atualização disponível")
+                            .setMessage("Nova versão encontrada (código $remoteCode). Deseja baixar e instalar?")
+                            .setPositiveButton("Baixar e instalar") { _, _ -> downloadAndInstall(apkUrl!!) }
+                            .setNegativeButton("Depois", null)
+                            .show()
+                    } else toast("Seu aplicativo já está atualizado.")
+                }
+            } catch (e: Exception) {
+                runOnUiThread { toast("Não foi possível verificar: ${e.message ?: "erro de conexão"}") }
+            }
+        }.start()
+    }
+
+    private fun downloadAndInstall(apkUrl: String) {
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            AlertDialog.Builder(this)
+                .setTitle("Permitir instalação")
+                .setMessage("Autorize o SrMatta Super Treino a instalar atualizações baixadas por ele. Depois toque novamente em Verificar atualizações.")
+                .setPositiveButton("Abrir configuração") { _, _ ->
+                    startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                }
+                .setNegativeButton("Cancelar", null).show()
+            return
+        }
+        toast("Baixando atualização…")
+        Thread {
+            try {
+                val connection = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 20000
+                    readTimeout = 30000
+                    instanceFollowRedirects = true
+                }
+                val apk = File(cacheDir, "SrMattaTreino-update.apk")
+                connection.inputStream.use { input -> apk.outputStream().use { output -> input.copyTo(output) } }
+                connection.disconnect()
+                if (apk.length() < 100000) throw IllegalStateException("Arquivo APK inválido ou incompleto.")
+                runOnUiThread {
+                    try {
+                        val uri = FileProvider.getUriForFile(this, "$packageName.provider", apk)
+                        val install = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(install)
+                    } catch (e: Exception) { toast("Não foi possível abrir o instalador: ${e.message}") }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { toast("Falha no download: ${e.message ?: "erro de conexão"}") }
+            }
+        }.start()
+    }
+
 }
