@@ -221,7 +221,7 @@ fun MainActivity.savePhoto(uri: Uri) {
 
 // ---------- Editar perfil ----------
 
-private fun MainActivity.editProfile() {
+fun MainActivity.editProfile() {
     val name = styled(EditText(this), "Como podemos te chamar?")
     name.setSingleLine(true)
     name.setText(prefs.getString("profile_name", "") ?: "")
