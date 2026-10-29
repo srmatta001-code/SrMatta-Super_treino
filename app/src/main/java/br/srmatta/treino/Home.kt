@@ -13,7 +13,9 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -87,9 +89,17 @@ private fun MainActivity.logoText(size: Float): TextView {
     return t
 }
 
+/** Aceita "15031990" ou "15/03/1990" e devolve "15/03/1990" (ou null se não tiver 8 dígitos). */
+private fun normalizeBirth(raw: String): String? {
+    val d = raw.filter { it.isDigit() }
+    if (d.length != 8) return null
+    return d.substring(0, 2) + "/" + d.substring(2, 4) + "/" + d.substring(4)
+}
+
 private fun ageOf(birth: String): Int? {
+    val norm = normalizeBirth(birth) ?: return null
     val d = try {
-        SimpleDateFormat("dd/MM/yyyy", PT).apply { isLenient = false }.parse(birth.trim())
+        SimpleDateFormat("dd/MM/yyyy", PT).apply { isLenient = false }.parse(norm)
     } catch (e: Exception) {
         null
     } ?: return null
@@ -208,9 +218,27 @@ fun MainActivity.savePhoto(uri: Uri) {
 // ---------- Editar perfil ----------
 
 private fun MainActivity.editProfile() {
-    val birth = styled(EditText(this), "dd/mm/aaaa")
-    birth.inputType = InputType.TYPE_CLASS_DATETIME or InputType.TYPE_DATETIME_VARIATION_DATE
+    val birth = styled(EditText(this), "dd/mm/aaaa (só números)")
+    birth.inputType = InputType.TYPE_CLASS_NUMBER
     birth.setText(prefs.getString("birth", "") ?: "")
+    // Teclado numérico não tem "/": o campo coloca as barras sozinho enquanto você digita.
+    birth.addTextChangedListener(object : TextWatcher {
+        var busy = false
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(e: Editable?) {
+            if (busy || e == null) return
+            busy = true
+            val digits = e.toString().filter { it.isDigit() }.take(8)
+            val f = StringBuilder()
+            digits.forEachIndexed { i, c ->
+                if (i == 2 || i == 4) f.append('/')
+                f.append(c)
+            }
+            if (f.toString() != e.toString()) e.replace(0, e.length, f.toString())
+            busy = false
+        }
+    })
     val height = styled(EditText(this), "Altura em cm (ex.: 178)")
     height.inputType = InputType.TYPE_CLASS_NUMBER
     prefs.getInt("height", 0).let { if (it > 0) height.setText(it.toString()) }
@@ -234,11 +262,11 @@ private fun MainActivity.editProfile() {
             val b = birth.text.toString().trim()
             val hv = height.text.toString().trim().toIntOrNull() ?: 0
             if (b.isNotEmpty() && ageOf(b) == null) {
-                toast("Data inválida. Use dd/mm/aaaa")
+                toast("Data inválida. Digite dia, mês e ano, ex.: 15031990")
             } else if (hv != 0 && hv !in 80..250) {
                 toast("Altura inválida")
             } else {
-                prefs.edit().putString("birth", b).putInt("height", hv).apply()
+                prefs.edit().putString("birth", normalizeBirth(b) ?: "").putInt("height", hv).apply()
                 show(HOME)
             }
         }
