@@ -45,4 +45,7 @@ android {
     }
 }
 
-// Sem nenhuma biblioteca extra (nada de AndroidX): só o framework do Android.
+
+dependencies {
+    implementation("androidx.core:core:1.13.1")
+}
