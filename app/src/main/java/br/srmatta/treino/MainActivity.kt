@@ -48,7 +48,7 @@ class MainActivity : Activity() {
     private var restDone = false
     private var restView: TextView? = null
     private var elapsedView: TextView? = null
-    private var timerBar: LinearLayout? = null
+    internal var timerBar: LinearLayout? = null
     private var sessionStart = 0L
     internal var selectedEx: String? = null
     internal var summaryPhotoSessionId: Long = -1L
