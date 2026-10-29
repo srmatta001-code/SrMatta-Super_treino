@@ -23,10 +23,24 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Preparar chave de assinatura privada
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > app/srmatta-release.jks
+          else
+            echo "::warning::Chave de assinatura não configurada; APK será gerado sem assinatura de release."
+          fi
+
       - name: Aceitar licenças do Android SDK
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Compilar APK
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
@@ -42,9 +56,9 @@ jobs:
           name: SrMattaTreino-apk
           path: SrMattaTreino.apk
 
-      # Link direto para baixar o APK pelo celular: aba "Releases" do repositório.
-      - uses: softprops/action-gh-release@v2
+      - name: Publicar Release
         if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: SrMatta Treino (build ${{ github.run_number }})
