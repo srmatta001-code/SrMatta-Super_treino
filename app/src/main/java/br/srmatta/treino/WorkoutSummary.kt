@@ -74,8 +74,16 @@ fun MainActivity.showWorkoutSummary(sessionId: Long) {
 
 private fun MainActivity.takeWorkoutPhoto(id: Long) {
     summaryPhotoSessionId = id
-    try { startActivityForResult(Intent(MediaStore.ACTION_IMAGE_CAPTURE), REQ_SUMMARY_CAMERA) }
-    catch (_: Exception) { toast("Câmera não disponível") }
+    try {
+        val file = File(cacheDir, "camera_$id.jpg")
+        pendingSummaryCameraPath = file.absolutePath
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivityForResult(intent, REQ_SUMMARY_CAMERA)
+    } catch (_: Exception) { toast("Câmera não disponível") }
 }
 
 private fun MainActivity.chooseWorkoutPhoto(id: Long) {
@@ -101,7 +109,12 @@ fun MainActivity.storeWorkoutPhoto(id: Long, bitmap: Bitmap) {
 
 fun MainActivity.storeWorkoutPhoto(id: Long, uri: android.net.Uri) {
     try {
-        val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
             ?: throw IllegalStateException("imagem inválida")
         storeWorkoutPhoto(id, bitmap)
     } catch (_: Exception) { toast("Não consegui carregar a foto") }
