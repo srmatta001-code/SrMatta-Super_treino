@@ -11,10 +11,13 @@ Aplicativo Android leve para registrar treinos de academia. Funciona 100% offlin
 
 | Aba | Função |
 | --- | --- |
+| **Início** | Foto de perfil, logo SrMatta, idade e peso. Sub-abas: **Resumo** (carga total somada, tempo total, treinos, séries e tipo de treino), **Medidas** (peso, IMC e medidas do corpo), **Exercícios** (recorde de cada um), **Calendário** e **Redes** (TikTok, Twitch, Instagram e a banda Valandil). |
 | **Treino** | Inicia treino livre ou por rotina (lista com ✓ nos exercícios feitos), registra séries, cronômetro de treino e de descanso com vibração. |
-| **Rotinas** | Cria/edita/exclui rotinas (Treino A, B, C...) e adiciona planos prontos: ABC, Full Body e Push/Pull/Legs. |
-| **Histórico** | Calendário mensal com os dias treinados e lista dos treinos (duração, séries, volume). |
+| **Rotinas** | Cria/edita/exclui rotinas e adiciona planos prontos (iniciante A/B, Upper/Lower + PPL, ABC, Full Body, PPL, ombros, bíceps, pernas). |
+| **Histórico** | Lista dos treinos com tipo, duração, séries e volume. |
 | **Evolução** | Séries por músculo nos últimos 7 dias, gráfico do peso corporal e da carga por exercício. |
+
+A biblioteca tem mais de 60 exercícios, cada um ligado a um grupo muscular. Estrutura dos planos inspirada nos treinos de hipertrofia.org.
 
 ## Como gerar o APK
 

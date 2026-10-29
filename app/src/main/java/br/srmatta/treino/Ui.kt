@@ -38,14 +38,10 @@ object C {
 
 val PT = Locale("pt", "BR")
 
-val DEFAULT_EXERCISES = listOf(
-    "Supino reto", "Supino inclinado", "Crucifixo", "Flexão de braço",
-    "Desenvolvimento", "Elevação lateral", "Tríceps pulley", "Tríceps testa",
-    "Puxada frontal", "Remada curvada", "Remada baixa", "Barra fixa",
-    "Rosca direta", "Rosca martelo", "Agachamento", "Leg press",
-    "Cadeira extensora", "Mesa flexora", "Stiff", "Levantamento terra",
-    "Avanço", "Elevação pélvica", "Panturrilha em pé", "Abdominal"
-)
+val DEFAULT_EXERCISES: List<String> get() = Muscles.NAMES
+
+/** Medidas do corpo (cm). */
+val MEASURES = listOf("Peito", "Cintura", "Quadril", "Braço", "Coxa", "Panturrilha")
 
 val REST_OPTIONS = listOf(45, 60, 90, 120, 180)
 

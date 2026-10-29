@@ -29,10 +29,15 @@ import java.util.Date
 import kotlin.math.ceil
 import kotlin.math.max
 
+const val HOME = 4
+const val REQ_PHOTO = 41
+/** Ordem das abas na barra: Início, Treino, Rotinas, Histórico, Evolução. */
+val NAV_IDS = listOf(HOME, 0, 1, 2, 3)
+
 class MainActivity : Activity() {
 
-    private lateinit var db: Db
-    private lateinit var content: FrameLayout
+    internal lateinit var db: Db
+    internal lateinit var content: FrameLayout
     private lateinit var navTabs: List<TextView>
     private val handler = Handler(Looper.getMainLooper())
 
@@ -42,9 +47,9 @@ class MainActivity : Activity() {
     private var restView: TextView? = null
     private var elapsedView: TextView? = null
     private var sessionStart = 0L
-    private var selectedEx: String? = null
+    internal var selectedEx: String? = null
 
-    private val prefs by lazy { getSharedPreferences("srmatta", MODE_PRIVATE) }
+    internal val prefs by lazy { getSharedPreferences("srmatta", MODE_PRIVATE) }
     private var restSecs: Int
         get() = prefs.getInt("rest", 90)
         set(v) {
@@ -57,7 +62,8 @@ class MainActivity : Activity() {
         set(v) {
             prefs.edit().putLong("routine", v).apply()
         }
-    private var calOffset = 0
+    internal var calOffset = 0
+    internal var homeTab = 0
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -78,7 +84,12 @@ class MainActivity : Activity() {
         root.addView(content, LinearLayout.LayoutParams(MP, 0, 1f))
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
-        show(0)
+        show(HOME)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_PHOTO && resultCode == RESULT_OK) data?.data?.let { savePhoto(it) }
     }
 
     override fun onResume() {
@@ -98,21 +109,21 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(C.card)
         }
-        val names = listOf("Treino", "Rotinas", "Histórico", "Evolução")
-        navTabs = names.mapIndexed { i, n ->
+        val names = listOf("Início", "Treino", "Rotinas", "Histórico", "Evolução")
+        navTabs = names.mapIndexed { k, n ->
             TextView(this).apply {
                 text = n
-                textSize = 14f
+                textSize = 12.5f
                 gravity = Gravity.CENTER
                 setPadding(0, dp(14), 0, dp(14))
-                setOnClickListener { show(i) }
+                setOnClickListener { show(NAV_IDS[k]) }
             }
         }
         navTabs.forEach { bar.addView(it, LinearLayout.LayoutParams(0, WRAP, 1f)) }
         return bar
     }
 
-    private fun show(i: Int) {
+    internal fun show(i: Int) {
         restView = null
         elapsedView = null
         content.removeAllViews()
@@ -120,12 +131,13 @@ class MainActivity : Activity() {
             0 -> trainPage()
             1 -> routinesPage()
             2 -> historyPage()
-            else -> progressPage()
+            3 -> progressPage()
+            else -> homePage()
         }
         content.addView(v, FrameLayout.LayoutParams(MP, MP))
         navTabs.forEachIndexed { k, t ->
-            t.setTextColor(if (k == i) C.blueLight else C.muted)
-            t.typeface = if (k == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            t.setTextColor(if (NAV_IDS[k] == i) C.blueLight else C.muted)
+            t.typeface = if (NAV_IDS[k] == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
         // Tela acesa enquanto há um treino aberto (para ver o descanso na academia).
         if (db.openSession() != null) {
@@ -136,19 +148,19 @@ class MainActivity : Activity() {
         tick()
     }
 
-    private fun page(title: String, body: LinearLayout.() -> Unit): View {
+    internal fun page(title: String, body: LinearLayout.() -> Unit): View {
         val sv = ScrollView(this)
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(24))
         }
-        col.addView(label(title, 26f, C.text, true))
+        if (title.isNotEmpty()) col.addView(label(title, 26f, C.text, true))
         col.body()
         sv.addView(col, FrameLayout.LayoutParams(MP, WRAP))
         return sv
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    internal fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
     // ---------- Cronômetros ----------
 
@@ -247,7 +259,7 @@ class MainActivity : Activity() {
                     addView(label(r.exercises.joinToString(" · "), 12f, C.muted), params(t = 4))
                     setOnClickListener {
                         activeRoutine = r.id
-                        db.startSession()
+                        db.startSession(r.name)
                         show(0)
                     }
                 }, params(t = 8))
@@ -444,7 +456,6 @@ class MainActivity : Activity() {
     // ---------- Aba Histórico ----------
 
     private fun historyPage(): View = page("Histórico") {
-        addView(calendarCard(), params(t = 12, b = 4))
         val list = db.history()
         if (list.isEmpty()) {
             addView(label("Nenhum treino finalizado ainda.\nComece pela aba Treino.", 15f, C.muted), params(t = 12))
@@ -452,6 +463,7 @@ class MainActivity : Activity() {
         for (h in list) {
             addView(card().apply {
                 addView(label(fmtWeekday(h.started), 17f, C.text, true))
+                addView(label(h.kind ?: "Treino livre", 12f, C.purpleLight, true), params(t = 2))
                 addView(
                     label(
                         "${fmtDuration(h.ended - h.started)} · ${plural(h.exercises, "exercício", "exercícios")} · ${plural(h.sets, "série", "séries")}",
@@ -644,7 +656,7 @@ class MainActivity : Activity() {
             return
         }
         activeRoutine = r.id
-        db.startSession()
+        db.startSession(r.name)
         show(0)
     }
 
@@ -745,81 +757,6 @@ class MainActivity : Activity() {
         if (unknown > 0) {
             c.addView(label("$unknown séries sem músculo definido.", 12f, C.muted), params(t = 10))
         }
-        return c
-    }
-
-    // ---------- Calendário ----------
-
-    private fun calendarCard(): LinearLayout {
-        val first = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            add(Calendar.MONTH, calOffset)
-        }
-        val start = startOfDay(first.timeInMillis)
-        val next = Calendar.getInstance().apply {
-            timeInMillis = start
-            add(Calendar.MONTH, 1)
-        }
-        val trained = db.trainedDays(start, next.timeInMillis)
-        val today = Calendar.getInstance()
-        val isThisMonth = today.get(Calendar.YEAR) == first.get(Calendar.YEAR) &&
-            today.get(Calendar.MONTH) == first.get(Calendar.MONTH)
-
-        val c = card()
-        val head = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        head.addView(stepButton("‹") {
-            calOffset--
-            show(2)
-        }, params(w = dp(44), h = dp(40)))
-        val title = SimpleDateFormat("MMMM yyyy", PT).format(Date(start)).replaceFirstChar { it.uppercase() }
-        head.addView(label(title, 16f, C.text, true).apply { gravity = Gravity.CENTER }, params(w = 0, weight = 1f))
-        head.addView(stepButton("›") {
-            if (calOffset < 0) {
-                calOffset++
-                show(2)
-            }
-        }, params(w = dp(44), h = dp(40)))
-        c.addView(head)
-
-        val names = listOf("D", "S", "T", "Q", "Q", "S", "S")
-        val wk = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (n in names) {
-            wk.addView(label(n, 12f, C.muted).apply { gravity = Gravity.CENTER }, params(w = 0, weight = 1f))
-        }
-        c.addView(wk, params(t = 10, b = 4))
-
-        val lead = first.get(Calendar.DAY_OF_WEEK) - 1
-        val days = first.getActualMaximum(Calendar.DAY_OF_MONTH)
-        var day = 1 - lead
-        while (day <= days) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (col in 0 until 7) {
-                val cell = TextView(this).apply {
-                    gravity = Gravity.CENTER
-                    textSize = 13f
-                }
-                if (day in 1..days) {
-                    cell.text = day.toString()
-                    if (day in trained) {
-                        cell.background = gradientBg(18)
-                        cell.setTextColor(android.graphics.Color.WHITE)
-                        cell.typeface = Typeface.DEFAULT_BOLD
-                    } else if (isThisMonth && day == today.get(Calendar.DAY_OF_MONTH)) {
-                        cell.setTextColor(C.blueLight)
-                        cell.typeface = Typeface.DEFAULT_BOLD
-                    } else {
-                        cell.setTextColor(C.muted)
-                    }
-                }
-                row.addView(cell, params(w = 0, h = dp(36), weight = 1f, l = 2, t = 2, r = 2, b = 2))
-                day++
-            }
-            c.addView(row)
-        }
-        c.addView(label("${plural(trained.size, "dia treinado", "dias treinados")} neste mês", 13f, C.purpleLight), params(t = 8))
         return c
     }
 }
