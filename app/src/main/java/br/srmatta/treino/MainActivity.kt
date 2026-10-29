@@ -453,6 +453,7 @@ class MainActivity : Activity() {
                         }
                         row.addView(label("${i + 1}ª série", 14f, C.muted), params(w = dp(84)))
                         row.addView(label("${fmtNum(st.weight)} kg × ${st.reps}", 16f, C.text, true), params(w = 0, weight = 1f))
+                        row.addView(smallButton("Editar") { editSet(st) }, params(r = 6))
                         row.addView(label("×", 24f, C.danger, true).apply {
                             setPadding(dp(14), dp(2), dp(4), dp(2))
                             setOnClickListener {
@@ -510,6 +511,39 @@ class MainActivity : Activity() {
                 if (Muscles.of(name, db.customMuscles()) == null) askMuscle(name)
             }
         }
+    }
+
+    private fun editSet(set: SetRow) {
+        val weight = styled(EditText(this), "Carga em kg").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(fmtInput(set.weight))
+        }
+        val reps = styled(EditText(this), "Repetições").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(set.reps.toString())
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(label(set.exercise, 14f, C.blueLight, true))
+            addView(weight, params(h = dp(48), t = 8))
+            addView(reps, params(h = dp(48), t = 8))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Editar série")
+            .setView(box)
+            .setPositiveButton("Salvar") { _, _ ->
+                val kg = parseNum(weight.text.toString())
+                val count = reps.text.toString().toIntOrNull()
+                if (kg == null || kg < 0 || count == null || count <= 0) {
+                    toast("Confira carga e repetições")
+                } else {
+                    db.updateSet(set.id, count, kg)
+                    show(0)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun confirmFinish(id: Long, nSets: Int) {
