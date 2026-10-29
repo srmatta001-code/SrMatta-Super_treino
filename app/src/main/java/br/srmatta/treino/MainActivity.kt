@@ -205,7 +205,6 @@ class MainActivity : Activity() {
     }
 
     private fun startRestService(endWall: Long) {
-        if (endWall <= System.currentTimeMillis()) return
         val intent = Intent(this, RestTimerService::class.java)
             .setAction(RestTimerService.ACTION_START)
             .putExtra(RestTimerService.EXTRA_END_AT, endWall)
