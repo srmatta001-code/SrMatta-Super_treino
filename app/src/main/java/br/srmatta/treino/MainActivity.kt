@@ -1,6 +1,7 @@
 package br.srmatta.treino
 
 import android.app.Activity
+import android.content.Intent
 import android.app.AlertDialog
 import android.graphics.Typeface
 import android.os.Bundle
@@ -48,6 +49,7 @@ class MainActivity : Activity() {
     private var restDone = false
     private var restView: TextView? = null
     private var elapsedView: TextView? = null
+    private var timerBar: LinearLayout? = null
     private var sessionStart = 0L
     internal var selectedEx: String? = null
 
@@ -84,6 +86,8 @@ class MainActivity : Activity() {
         }
         content = FrameLayout(this)
         root.addView(content, LinearLayout.LayoutParams(MP, 0, 1f))
+        timerBar = buildTimerBar()
+        root.addView(timerBar, LinearLayout.LayoutParams(MP, WRAP))
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
         show(HOME)
@@ -96,12 +100,39 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        restoreRestTimer()
+        if (restEnd > 0L) startRestService(prefs.getLong("rest_end_wall", 0L))
         handler.post(ticker)
     }
 
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(ticker)
+    }
+
+
+    /** Faixa fixa de cronômetros: permanece visível ao navegar pelas abas. */
+    private fun buildTimerBar(): LinearLayout {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setBackgroundColor(C.card)
+            visibility = View.GONE
+        }
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        left.addView(label("TEMPO DE TREINO", 10f, C.muted, true))
+        elapsedView = label("00:00", 22f, C.text, true)
+        left.addView(elapsedView)
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+        }
+        right.addView(label("DESCANSO", 10f, C.muted, true))
+        restView = label("—", 22f, C.purpleLight, true)
+        right.addView(restView)
+        bar.addView(left, params(w = 0, weight = 1f))
+        bar.addView(right, params(w = 0, weight = 1f))
+        return bar
     }
 
     // ---------- Navegação ----------
@@ -126,8 +157,6 @@ class MainActivity : Activity() {
     }
 
     internal fun show(i: Int) {
-        restView = null
-        elapsedView = null
         content.removeAllViews()
         val v = when (i) {
             0 -> trainPage()
@@ -137,6 +166,9 @@ class MainActivity : Activity() {
             else -> homePage()
         }
         content.addView(v, FrameLayout.LayoutParams(MP, MP))
+        val open = db.openSession()
+        timerBar?.visibility = if (open == null) View.GONE else View.VISIBLE
+        if (open != null) sessionStart = open.started
         navTabs.forEachIndexed { k, t ->
             t.setTextColor(if (NAV_IDS[k] == i) C.blueLight else C.muted)
             t.typeface = if (NAV_IDS[k] == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -166,21 +198,44 @@ class MainActivity : Activity() {
 
     // ---------- Cronômetros ----------
 
+    private fun restoreRestTimer() {
+        val endWall = prefs.getLong("rest_end_wall", 0L)
+        val remaining = endWall - System.currentTimeMillis()
+        restEnd = if (remaining > 0L) SystemClock.elapsedRealtime() + remaining else 0L
+        restDone = prefs.getBoolean("rest_done", false)
+    }
+
+    private fun startRestService(endWall: Long) {
+        if (endWall <= System.currentTimeMillis()) return
+        val intent = Intent(this, RestTimerService::class.java)
+            .setAction(RestTimerService.ACTION_START)
+            .putExtra(RestTimerService.EXTRA_END_AT, endWall)
+        if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+    }
+
     private fun startRest() {
+        val endWall = System.currentTimeMillis() + restSecs * 1000L
         restEnd = SystemClock.elapsedRealtime() + restSecs * 1000L
         restDone = false
+        prefs.edit().putLong("rest_end_wall", endWall).putBoolean("rest_done", false).apply()
+        startRestService(endWall)
         tick()
     }
 
     private fun adjustRest(deltaSec: Int) {
         if (restEnd == 0L) return
         restEnd += deltaSec * 1000L
+        val endWall = System.currentTimeMillis() + (restEnd - SystemClock.elapsedRealtime())
+        prefs.edit().putLong("rest_end_wall", endWall).apply()
+        startRestService(endWall)
         tick()
     }
 
     private fun stopRest() {
         restEnd = 0L
         restDone = false
+        prefs.edit().putLong("rest_end_wall", 0L).putBoolean("rest_done", false).apply()
+        startService(Intent(this, RestTimerService::class.java).setAction(RestTimerService.ACTION_STOP))
         tick()
     }
 
@@ -275,24 +330,6 @@ class MainActivity : Activity() {
         val sets = db.setsOf(s.id)
 
         // Cronômetros: tempo de treino e descanso.
-        val timers = card().apply { orientation = LinearLayout.HORIZONTAL }
-        val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        left.addView(label("Tempo de treino", 12f, C.muted))
-        val ev = label("00:00", 26f, C.text, true)
-        elapsedView = ev
-        left.addView(ev)
-        val right = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.END
-        }
-        right.addView(label("Descanso", 12f, C.muted))
-        val rv = label("—", 26f, C.muted, true)
-        restView = rv
-        right.addView(rv)
-        timers.addView(left, params(w = 0, weight = 1f))
-        timers.addView(right, params(w = 0, weight = 1f))
-        addView(timers, params(t = 10, b = 8))
-
         val controls = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         controls.addView(smallButton("−15 s") { adjustRest(-15) }, params(w = 0, weight = 1f, r = 6))
         controls.addView(smallButton("+15 s") { adjustRest(15) }, params(w = 0, weight = 1f, r = 6))
@@ -738,6 +775,7 @@ class MainActivity : Activity() {
             .setTitle("Exercícios de $name")
             .setMultiChoiceItems(all.toTypedArray(), checked) { _, i, c -> checked[i] = c }
             .setNeutralButton("Adicionar exercício") { _, _ ->
+                val selectedBeforeAdding = all.filterIndexed { i, _ -> checked[i] }
                 val field = styled(EditText(this), "Nome do novo exercício")
                 field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 AlertDialog.Builder(this)
@@ -746,7 +784,7 @@ class MainActivity : Activity() {
                     .setPositiveButton("Adicionar") { _, _ ->
                         val value = field.text.toString().trim().replace(Regex("\\s+"), " ")
                         if (value.isBlank()) toast("Digite o nome do exercício")
-                        else pickExercises(r, name, extra + value)
+                        else pickExercises(r, name, (selectedBeforeAdding + extra + value).distinctBy { it.trim().lowercase() })
                     }
                     .setNegativeButton("Cancelar", null)
                     .show()
