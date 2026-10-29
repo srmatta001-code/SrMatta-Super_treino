@@ -805,7 +805,7 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(8), dp(16), dp(8))
             }
-            lateinit var dialog: AlertDialog
+            var dialog: AlertDialog? = null
             ordered.forEachIndexed { index, exercise ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -816,7 +816,7 @@ class MainActivity : Activity() {
                     row.addView(smallButton("↑") {
                         val item = ordered.removeAt(index)
                         ordered.add(index - 1, item)
-                        dialog.dismiss()
+                        dialog?.dismiss()
                         renderOrder()
                     }, params(w = dp(42), r = 4))
                 }
@@ -824,7 +824,7 @@ class MainActivity : Activity() {
                     row.addView(smallButton("↓") {
                         val item = ordered.removeAt(index)
                         ordered.add(index + 1, item)
-                        dialog.dismiss()
+                        dialog?.dismiss()
                         renderOrder()
                     }, params(w = dp(42), r = 4))
                 }
