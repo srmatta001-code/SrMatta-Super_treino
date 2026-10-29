@@ -118,6 +118,13 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "srmatta.db", null, 3) {
         writableDatabase.delete("sets", "id=?", arrayOf(id.toString()))
     }
 
+    fun updateSet(id: Long, reps: Int, weight: Double) {
+        writableDatabase.update("sets", ContentValues().apply {
+            put("reps", reps)
+            put("weight", weight)
+        }, "id=?", arrayOf(id.toString()))
+    }
+
     private fun readSet(c: Cursor) =
         SetRow(c.getLong(0), c.getLong(1), c.getString(2), c.getInt(3), c.getDouble(4))
 
