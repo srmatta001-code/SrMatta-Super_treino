@@ -46,7 +46,13 @@ jobs:
           ./gradlew assembleRelease --no-daemon
 
       - name: Renomear APK
-        run: cp app/build/outputs/apk/release/app-release.apk SrMattaTreino.apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
+          if [ -z "$APK_PATH" ]; then
+            echo "Nenhum APK foi encontrado na pasta de release."
+            exit 1
+          fi
+          cp "$APK_PATH" SrMattaTreino.apk
 
       - name: Mostrar tamanho
         run: ls -lh SrMattaTreino.apk
