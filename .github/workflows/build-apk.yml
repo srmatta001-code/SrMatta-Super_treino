@@ -3,6 +3,8 @@ name: Gerar APK
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -42,6 +44,7 @@ jobs:
 
       # Link direto para baixar o APK pelo celular: aba "Releases" do repositório.
       - uses: softprops/action-gh-release@v2
+        if: github.event_name != 'pull_request'
         with:
           tag_name: build-${{ github.run_number }}
           name: SrMatta Treino (build ${{ github.run_number }})
