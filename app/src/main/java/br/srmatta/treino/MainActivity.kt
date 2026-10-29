@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private var timerBar: LinearLayout? = null
     private var sessionStart = 0L
     internal var selectedEx: String? = null
+    internal var summaryPhotoSessionId: Long = -1L
 
     internal val prefs by lazy { getSharedPreferences("srmatta", MODE_PRIVATE) }
     private var restSecs: Int
@@ -95,6 +96,14 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_PHOTO && resultCode == RESULT_OK) data?.data?.let { savePhoto(it) }
+        if (resultCode == RESULT_OK && summaryPhotoSessionId > 0L) {
+            when (requestCode) {
+                REQ_SUMMARY_GALLERY -> data?.data?.let { storeWorkoutPhoto(summaryPhotoSessionId, it) }
+                REQ_SUMMARY_CAMERA -> (data?.extras?.get("data") as? android.graphics.Bitmap)?.let {
+                    storeWorkoutPhoto(summaryPhotoSessionId, it)
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -513,7 +522,7 @@ class MainActivity : Activity() {
                 db.endSession(id)
                 activeRoutine = -1L
                 stopRest()
-                show(2)
+                if (nSets > 0) showWorkoutSummary(id) else show(2)
             }
             .setNegativeButton("Continuar", null)
             .show()
