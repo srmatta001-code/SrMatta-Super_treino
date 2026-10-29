@@ -25,6 +25,8 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.TextView
 import java.io.File
 import java.text.SimpleDateFormat
@@ -218,10 +220,13 @@ fun MainActivity.savePhoto(uri: Uri) {
 // ---------- Editar perfil ----------
 
 private fun MainActivity.editProfile() {
-    val birth = styled(EditText(this), "dd/mm/aaaa (só números)")
+    val name = styled(EditText(this), "Como podemos te chamar?")
+    name.setSingleLine(true)
+    name.setText(prefs.getString("profile_name", "") ?: "")
+
+    val birth = styled(EditText(this), "dd/mm/aaaa")
     birth.inputType = InputType.TYPE_CLASS_NUMBER
     birth.setText(prefs.getString("birth", "") ?: "")
-    // Teclado numérico não tem "/": o campo coloca as barras sozinho enquanto você digita.
     birth.addTextChangedListener(object : TextWatcher {
         var busy = false
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -239,26 +244,48 @@ private fun MainActivity.editProfile() {
             busy = false
         }
     })
-    val height = styled(EditText(this), "Altura em cm (ex.: 178)")
+
+    val height = styled(EditText(this), "Altura em centímetros (ex.: 178)")
     height.inputType = InputType.TYPE_CLASS_NUMBER
     prefs.getInt("height", 0).let { if (it > 0) height.setText(it.toString()) }
+
+    val sexOptions = listOf("Prefiro não informar", "Masculino", "Feminino")
+    val sex = Spinner(this).apply {
+        adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, sexOptions)
+        setSelection(sexOptions.indexOf(prefs.getString("sex", "Prefiro não informar")).coerceAtLeast(0))
+    }
+    val activityOptions = listOf(
+        "Sedentário — pouco movimento",
+        "Leve — exercício 1 a 3 dias/semana",
+        "Moderado — exercício 3 a 5 dias/semana",
+        "Alto — exercício intenso 6 a 7 dias/semana",
+        "Muito alto — trabalho físico e treino"
+    )
+    val activity = Spinner(this).apply {
+        adapter = ArrayAdapter(this@editProfile, android.R.layout.simple_spinner_dropdown_item, activityOptions)
+        setSelection(activityOptions.indexOf(prefs.getString("activity", activityOptions[0])).coerceAtLeast(0))
+    }
 
     val box = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(20), dp(8), dp(20), 0)
-        addView(label("Data de nascimento", 13f, C.muted))
+        addView(label("Nome", 13f, C.muted))
+        addView(name, params(h = dp(48), t = 6))
+        addView(label("Data de nascimento", 13f, C.muted), params(t = 12))
         addView(birth, params(h = dp(48), t = 6))
-        addView(label("Altura (cm)", 13f, C.muted), params(t = 14))
+        addView(label("Sexo biológico (opcional; usado em estimativas)", 13f, C.muted), params(t = 12))
+        addView(sex, params(h = dp(48), t = 4))
+        addView(label("Altura (cm)", 13f, C.muted), params(t = 12))
         addView(height, params(h = dp(48), t = 6))
-        addView(
-            label("O peso vem da aba Medidas. A foto: toque nela.", 12f, C.muted),
-            params(t = 14)
-        )
+        addView(label("Nível de atividade", 13f, C.muted), params(t = 12))
+        addView(activity, params(h = dp(56), t = 4))
+        addView(label("Seu peso é registrado na aba Medidas. Os dados ficam salvos neste aparelho.", 12f, C.muted), params(t = 12, b = 8))
     }
     AlertDialog.Builder(this)
-        .setTitle("Perfil")
+        .setTitle("Perfil e avaliação física")
         .setView(ScrollView(this).apply { addView(box) })
         .setPositiveButton("Salvar") { _, _ ->
+            val n = name.text.toString().trim()
             val b = birth.text.toString().trim()
             val hv = height.text.toString().trim().toIntOrNull() ?: 0
             if (b.isNotEmpty() && ageOf(b) == null) {
@@ -266,7 +293,13 @@ private fun MainActivity.editProfile() {
             } else if (hv != 0 && hv !in 80..250) {
                 toast("Altura inválida")
             } else {
-                prefs.edit().putString("birth", normalizeBirth(b) ?: "").putInt("height", hv).apply()
+                prefs.edit()
+                    .putString("profile_name", n)
+                    .putString("birth", normalizeBirth(b) ?: "")
+                    .putString("sex", sex.selectedItem.toString())
+                    .putInt("height", hv)
+                    .putString("activity", activity.selectedItem.toString())
+                    .apply()
                 show(HOME)
             }
         }
@@ -289,7 +322,67 @@ private fun LinearLayout.pair(a: View, b: View) {
     addView(row, LinearLayout.LayoutParams(MP, WRAP).apply { bottomMargin = context.dp(10) })
 }
 
+private fun MainActivity.assessmentCard(): LinearLayout {
+    val c = card()
+    c.addView(label("PERFIL E AVALIAÇÃO FÍSICA", 15f, C.blueLight, true))
+    val name = prefs.getString("profile_name", "")?.trim().orEmpty()
+    val age = ageOf(prefs.getString("birth", "") ?: "")
+    val heightCm = prefs.getInt("height", 0)
+    val sex = prefs.getString("sex", "Prefiro não informar") ?: "Prefiro não informar"
+    val activity = prefs.getString("activity", "Não informado") ?: "Não informado"
+    val last = db.bodyAll().lastOrNull()
+
+    c.addView(label(if (name.isNotEmpty()) "Olá, $name" else "Complete seus dados para começar", 18f, C.text, true), params(t = 8))
+    val profileParts = ArrayList<String>()
+    profileParts.add(if (age != null) "$age anos" else "idade não informada")
+    profileParts.add(sex)
+    profileParts.add(if (heightCm > 0) "$heightCm cm" else "altura não informada")
+    c.addView(label(profileParts.joinToString("  ·  "), 12f, C.muted), params(t = 4))
+
+    if (last == null) {
+        c.addView(label("Registre seu peso para calcular o IMC e acompanhar sua evolução.", 13f, C.muted), params(t = 10))
+    } else {
+        c.addView(label("Peso atual", 12f, C.muted), params(t = 12))
+        c.addView(label("${fmtNum(last.kg)} kg", 26f, C.text, true), params(t = 2))
+        if (heightCm in 80..250) {
+            val bmi = last.kg / ((heightCm / 100.0) * (heightCm / 100.0))
+            val rounded = Math.round(bmi * 10) / 10.0
+            c.addView(label("IMC: ${fmtNum(rounded)}", 20f, C.purpleLight, true), params(t = 8))
+            if (age != null && age >= 20) {
+                val classification = when {
+                    bmi < 18.5 -> "Abaixo do peso"
+                    bmi < 25.0 -> "Peso adequado"
+                    bmi < 30.0 -> "Sobrepeso"
+                    bmi < 35.0 -> "Obesidade grau I"
+                    bmi < 40.0 -> "Obesidade grau II"
+                    else -> "Obesidade grau III"
+                }
+                val healthy = bmi >= 18.5 && bmi < 25.0
+                c.addView(label(classification, 14f, if (healthy) C.ok else C.warn, true), params(t = 2))
+                val low = 18.5 * (heightCm / 100.0) * (heightCm / 100.0)
+                val high = 24.9 * (heightCm / 100.0) * (heightCm / 100.0)
+                c.addView(label("Faixa de referência adulta: ${fmtNum(low)}–${fmtNum(high)} kg", 12f, C.muted), params(t = 5))
+            } else {
+                c.addView(label("A classificação do IMC adulto só é exibida a partir dos 20 anos.", 12f, C.muted), params(t = 4))
+            }
+        } else {
+            c.addView(label("Informe sua altura para calcular o IMC.", 12f, C.muted), params(t = 4))
+        }
+    }
+    c.addView(label("Atividade: ${activity.substringBefore(" —")}", 12f, C.muted), params(t = 8))
+    c.addView(label("O IMC é uma referência inicial; não mede diretamente gordura ou massa muscular.", 11f, C.muted), params(t = 8))
+    val actions = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(this@assessmentCard.smallButton("Editar perfil") { editProfile() }, this@assessmentCard.params(w = 0, weight = 1f, r = 6))
+        addView(this@assessmentCard.smallButton("Registrar peso") { homeTab = 1; show(HOME) }, this@assessmentCard.params(w = 0, weight = 1f))
+    }
+    c.addView(actions, params(t = 12))
+    return c
+}
+
 private fun LinearLayout.summaryInto(a: MainActivity) {
+    addView(a.assessmentCard(), a.params(b = 12))
     addView(a.coachCard(), a.params(b = 12))
     val t = a.db.totals()
     if (t.sessions == 0) {
