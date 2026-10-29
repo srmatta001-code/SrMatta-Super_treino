@@ -41,6 +41,9 @@ class MainActivity : Activity() {
     internal lateinit var db: Db
     internal lateinit var content: FrameLayout
     private lateinit var navTabs: List<TextView>
+    private lateinit var timerBar: LinearLayout
+    private lateinit var globalElapsedView: TextView
+    private lateinit var globalRestView: TextView
     private val handler = Handler(Looper.getMainLooper())
 
     // Cronômetros (o de descanso usa o relógio do sistema, então não "anda" errado).
@@ -84,6 +87,7 @@ class MainActivity : Activity() {
         }
         content = FrameLayout(this)
         root.addView(content, LinearLayout.LayoutParams(MP, 0, 1f))
+        root.addView(buildTimerBar(), LinearLayout.LayoutParams(MP, WRAP))
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
         show(HOME)
@@ -166,6 +170,31 @@ class MainActivity : Activity() {
 
     internal fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
+    // Barra fixa dos cronômetros: permanece visível em todas as abas.
+    private fun buildTimerBar(): View {
+        timerBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setBackgroundColor(C.card)
+            visibility = View.GONE
+        }
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        left.addView(label("TEMPO DE TREINO", 10f, C.muted, true))
+        globalElapsedView = label("00:00", 22f, C.text, true)
+        left.addView(globalElapsedView)
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+        }
+        right.addView(label("DESCANSO", 10f, C.muted, true))
+        globalRestView = label("—", 22f, C.purpleLight, true)
+        right.addView(globalRestView)
+        timerBar.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
+        timerBar.addView(right, LinearLayout.LayoutParams(0, WRAP, 1f))
+        return timerBar
+    }
+
     // ---------- Cronômetros ----------
 
     private fun startWorkoutTimerService() {
@@ -209,26 +238,36 @@ class MainActivity : Activity() {
 
     private fun tick() {
         val now = SystemClock.elapsedRealtime()
+        val active = db.openSession()
+        timerBar.visibility = if (active != null) View.VISIBLE else View.GONE
         restEnd = prefs.getLong(WorkoutTimerService.PREF_REST_END, 0L)
         restDone = prefs.getBoolean(WorkoutTimerService.PREF_REST_DONE, false)
-        restView?.let { v ->
-            when {
-                restEnd > now -> {
-                    val s = ceil((restEnd - now) / 1000.0).toInt()
-                    v.text = fmtClock(s)
-                    v.setTextColor(if (s <= 10) C.warn else C.purpleLight)
-                }
-                restDone -> {
-                    v.text = "Pronto!"
-                    v.setTextColor(C.ok)
-                }
-                else -> {
-                    v.text = "—"
-                    v.setTextColor(C.muted)
-                }
+        val restText: String
+        val restColor: Int
+        when {
+            restEnd > now -> {
+                val seconds = ceil((restEnd - now) / 1000.0).toInt()
+                restText = fmtClock(seconds)
+                restColor = if (seconds <= 10) C.warn else C.purpleLight
+            }
+            restDone -> {
+                restText = "Pronto!"
+                restColor = C.ok
+            }
+            else -> {
+                restText = "—"
+                restColor = C.muted
             }
         }
-        elapsedView?.text = fmtClock(((System.currentTimeMillis() - sessionStart) / 1000).toInt())
+        globalRestView.text = restText
+        globalRestView.setTextColor(restColor)
+        restView?.text = restText
+        restView?.setTextColor(restColor)
+        if (active != null) {
+            val elapsed = fmtClock(((System.currentTimeMillis() - active.started) / 1000).toInt())
+            globalElapsedView.text = elapsed
+            elapsedView?.text = elapsed
+        }
     }
 
     // ---------- Aba Treino ----------
@@ -287,24 +326,7 @@ class MainActivity : Activity() {
         sessionStart = s.started
         val sets = db.setsOf(s.id)
 
-        // Cronômetros: tempo de treino e descanso.
-        val timers = card().apply { orientation = LinearLayout.HORIZONTAL }
-        val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        left.addView(label("Tempo de treino", 12f, C.muted))
-        val ev = label("00:00", 26f, C.text, true)
-        elapsedView = ev
-        left.addView(ev)
-        val right = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.END
-        }
-        right.addView(label("Descanso", 12f, C.muted))
-        val rv = label("—", 26f, C.muted, true)
-        restView = rv
-        right.addView(rv)
-        timers.addView(left, params(w = 0, weight = 1f))
-        timers.addView(right, params(w = 0, weight = 1f))
-        addView(timers, params(t = 10, b = 8))
+        // Os cronômetros ficam na barra fixa abaixo do conteúdo, em todas as abas.
 
         val controls = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         controls.addView(smallButton("−15 s") { adjustRest(-15) }, params(w = 0, weight = 1f, r = 6))
