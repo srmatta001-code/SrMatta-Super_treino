@@ -866,9 +866,11 @@ class MainActivity : Activity() {
     // ---------- Ajuda, versão e atualizações ----------
 
     private fun helpPage(): View = page("Ajuda") {
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val installedCode = if (android.os.Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
         addView(card().apply {
             addView(label("SrMatta Super Treino", 17f, C.text, true))
-            addView(label("Versão ${BuildConfig.VERSION_NAME} (código ${BuildConfig.VERSION_CODE})", 14f, C.muted), params(t = 8))
+            addView(label("Versão ${packageInfo.versionName} (código $installedCode)", 14f, C.muted), params(t = 8))
             addView(label("Confira se existe uma versão mais recente do aplicativo.", 13f, C.muted), params(t = 8))
             addView(primaryButton("Verificar atualizações") { checkForUpdates() }, params(t = 14))
         }, params(t = 12, b = 12))
@@ -884,6 +886,11 @@ class MainActivity : Activity() {
             addView(secondaryButton("Suporte por e-mail") { sendSupportEmail("Suporte - SrMatta Super Treino") }, params(t = 8))
             addView(label("srmatta001@gmail.com", 13f, C.muted), params(t = 8))
         }, params(b = 12))
+    }
+
+    private fun currentInstalledVersionCode(): Long {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        return if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
     }
 
     private fun sendSupportEmail(subject: String) {
@@ -918,7 +925,7 @@ class MainActivity : Activity() {
                 }
                 if (apkUrl.isNullOrBlank()) throw IllegalStateException("APK não encontrado na publicação.")
                 runOnUiThread {
-                    if (remoteCode > BuildConfig.VERSION_CODE) {
+                    if (remoteCode.toLong() > currentInstalledVersionCode()) {
                         AlertDialog.Builder(this)
                             .setTitle("Atualização disponível")
                             .setMessage("Nova versão encontrada (código $remoteCode). Deseja baixar e instalar?")
