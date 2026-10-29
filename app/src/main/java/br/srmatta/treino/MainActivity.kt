@@ -87,6 +87,8 @@ class MainActivity : Activity() {
         root.addView(buildNav(), LinearLayout.LayoutParams(MP, WRAP))
         setContentView(root)
         show(HOME)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7001)
+        if (db.openSession() != null) startWorkoutTimerService()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
@@ -166,21 +168,33 @@ class MainActivity : Activity() {
 
     // ---------- Cronômetros ----------
 
+    private fun startWorkoutTimerService() {
+        val started = db.openSession()?.started ?: System.currentTimeMillis()
+        val intent = android.content.Intent(this, WorkoutTimerService::class.java)
+            .setAction(WorkoutTimerService.ACTION_START)
+            .putExtra(WorkoutTimerService.EXTRA_SESSION_START, started)
+        if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+    }
+
+    private fun sendTimerCommand(action: String, value: Int = 0) {
+        val intent = android.content.Intent(this, WorkoutTimerService::class.java).setAction(action)
+            .putExtra(WorkoutTimerService.EXTRA_VALUE, value)
+        if (android.os.Build.VERSION.SDK_INT >= 26 && action == WorkoutTimerService.ACTION_START) startForegroundService(intent) else startService(intent)
+    }
+
     private fun startRest() {
-        restEnd = SystemClock.elapsedRealtime() + restSecs * 1000L
         restDone = false
+        sendTimerCommand(WorkoutTimerService.ACTION_REST, restSecs)
         tick()
     }
 
     private fun adjustRest(deltaSec: Int) {
-        if (restEnd == 0L) return
-        restEnd += deltaSec * 1000L
+        sendTimerCommand(WorkoutTimerService.ACTION_ADJUST_REST, deltaSec)
         tick()
     }
 
     private fun stopRest() {
-        restEnd = 0L
-        restDone = false
+        sendTimerCommand(WorkoutTimerService.ACTION_STOP_REST)
         tick()
     }
 
@@ -195,14 +209,11 @@ class MainActivity : Activity() {
 
     private fun tick() {
         val now = SystemClock.elapsedRealtime()
-        if (restEnd != 0L && now >= restEnd) {
-            restEnd = 0L
-            restDone = true
-            buzz()
-        }
+        restEnd = prefs.getLong(WorkoutTimerService.PREF_REST_END, 0L)
+        restDone = prefs.getBoolean(WorkoutTimerService.PREF_REST_DONE, false)
         restView?.let { v ->
             when {
-                restEnd != 0L -> {
+                restEnd > now -> {
                     val s = ceil((restEnd - now) / 1000.0).toInt()
                     v.text = fmtClock(s)
                     v.setTextColor(if (s <= 10) C.warn else C.purpleLight)
@@ -245,6 +256,7 @@ class MainActivity : Activity() {
         addView(primaryButton("Iniciar treino livre") {
             activeRoutine = -1L
             db.startSession()
+            startWorkoutTimerService()
             show(0)
         }, params())
 
@@ -263,6 +275,7 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         activeRoutine = r.id
                         db.startSession(r.name)
+                        startWorkoutTimerService()
                         show(0)
                     }
                 }, params(t = 8))
@@ -483,6 +496,7 @@ class MainActivity : Activity() {
                 db.endSession(id)
                 activeRoutine = -1L
                 stopRest()
+                sendTimerCommand(WorkoutTimerService.ACTION_STOP)
                 show(2)
             }
             .setNegativeButton("Continuar", null)
@@ -693,6 +707,7 @@ class MainActivity : Activity() {
         }
         activeRoutine = r.id
         db.startSession(r.name)
+        startWorkoutTimerService()
         show(0)
     }
 
