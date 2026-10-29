@@ -757,7 +757,8 @@ class MainActivity : Activity() {
     private fun pickExercises(r: Routine?, name: String, extra: List<String> = emptyList()) {
         val all = (DEFAULT_EXERCISES + db.exerciseNames() + (r?.exercises ?: emptyList()) + extra)
             .distinctBy { it.trim().lowercase() }
-        val chosen = (r?.exercises.orEmpty() + extra).map { it.lowercase() }.toSet()
+        val chosen = (if (extra.isNotEmpty()) extra else r?.exercises.orEmpty())
+            .map { it.trim().lowercase() }.toSet()
         val checked = BooleanArray(all.size) { all[it].lowercase() in chosen }
         AlertDialog.Builder(this)
             .setTitle("Exercícios de $name")
@@ -782,12 +783,71 @@ class MainActivity : Activity() {
                 if (picked.isEmpty()) {
                     toast("Escolha ao menos um exercício")
                 } else {
-                    db.saveRoutine(r?.id, name, picked)
-                    show(1)
+                    orderRoutineExercises(r, name, picked)
                 }
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+
+    /** Permite reorganizar e remover exercícios antes de salvar a rotina. */
+    private fun orderRoutineExercises(r: Routine?, name: String, initial: List<String>) {
+        val ordered = initial.toMutableList()
+        fun renderOrder() {
+            val scroll = ScrollView(this)
+            val rows = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+            }
+            lateinit var dialog: AlertDialog
+            ordered.forEachIndexed { index, exercise ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                row.addView(label("${index + 1}. $exercise", 14f, C.text), params(w = 0, weight = 1f))
+                if (index > 0) {
+                    row.addView(smallButton("↑") {
+                        val item = ordered.removeAt(index)
+                        ordered.add(index - 1, item)
+                        dialog.dismiss()
+                        renderOrder()
+                    }, params(w = dp(42), r = 4))
+                }
+                if (index < ordered.lastIndex) {
+                    row.addView(smallButton("↓") {
+                        val item = ordered.removeAt(index)
+                        ordered.add(index + 1, item)
+                        dialog.dismiss()
+                        renderOrder()
+                    }, params(w = dp(42), r = 4))
+                }
+                row.addView(smallButton("×") {
+                    if (ordered.size > 1) {
+                        ordered.removeAt(index)
+                        dialog.dismiss()
+                        renderOrder()
+                    } else {
+                        toast("A rotina precisa ter ao menos um exercício")
+                    }
+                }, params(w = dp(42)))
+                rows.addView(row, params(t = 4, b = 4))
+            }
+            scroll.addView(rows)
+            dialog = AlertDialog.Builder(this)
+                .setTitle("Ordem dos exercícios — $name")
+                .setView(scroll)
+                .setPositiveButton("Salvar rotina") { _, _ ->
+                    db.saveRoutine(r?.id, name, ordered)
+                    show(1)
+                }
+                .setNegativeButton("Voltar aos exercícios") { _, _ ->
+                    pickExercises(r, name, ordered.toList())
+                }
+                .show()
+        }
+        renderOrder()
     }
 
     // ---------- Músculos ----------
