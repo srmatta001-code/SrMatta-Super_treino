@@ -10,6 +10,8 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.media.session.MediaSession
+import android.media.MediaMetadata
+import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -62,6 +64,14 @@ class WorkoutTimerService : Service() {
         mediaSession = MediaSession(this, "SrMattaWorkout").apply {
             setFlags(MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
             isActive = true
+            setMetadata(MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, "SrMatta Super Treino")
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, "Cronômetros do treino")
+                .build())
+            setPlaybackState(PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_STOP)
+                .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
+                .build())
             setCallback(object : MediaSession.Callback() {
                 override fun onStop() { stopWorkout() }
             })
@@ -218,6 +228,7 @@ class WorkoutTimerService : Service() {
         handler.removeCallbacks(ticker)
         prefs.edit().remove("workout_session_start").putLong(PREF_REST_END, 0L).putBoolean(PREF_REST_DONE, false).apply()
         manager.cancel(ALERT_ID)
+        if (::mediaSession.isInitialized) mediaSession.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_STOPPED, 0L, 0f).build())
         stopForeground(true)
         stopSelf()
     }
