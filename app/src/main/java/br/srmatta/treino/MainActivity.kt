@@ -8,7 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.Vibrator
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
@@ -239,6 +241,7 @@ class MainActivity : Activity() {
                 )
             }
         }, params(b = 16))
+        addView(coachCard(), params(b = 16))
         addView(primaryButton("Iniciar treino livre") {
             activeRoutine = -1L
             db.startSession()
@@ -332,6 +335,36 @@ class MainActivity : Activity() {
             }
         }
 
+        // Treinador: sugere carga e repetições a partir do último treino deste exercício.
+        val customMuscles = db.customMuscles()
+        val sug = label("", 13f, C.purpleLight, true)
+        sug.visibility = View.GONE
+        var suggestion: Suggestion? = null
+        fun refreshSuggestion() {
+            val name = ex.text.toString().trim()
+            suggestion = if (name.isEmpty()) null
+            else Coach.suggest(db.lastSessionSets(name), Muscles.of(name, customMuscles))
+            val s = suggestion
+            if (s == null) {
+                sug.visibility = View.GONE
+            } else {
+                sug.visibility = View.VISIBLE
+                sug.text = "Sugestão: ${fmtNum(s.weight)} kg × ${s.reps}\n${s.note}\nToque para usar"
+            }
+        }
+        sug.setOnClickListener {
+            suggestion?.let {
+                kg.setText(fmtInput(it.weight))
+                reps.setText(it.reps.toString())
+            }
+        }
+        ex.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) = refreshSuggestion()
+        })
+        refreshSuggestion()
+
         // Rotina em andamento: lista dos exercícios com ✓ nos que já têm série. Toque para preencher o formulário.
         val routine = if (activeRoutine >= 0) db.routine(activeRoutine) else null
         if (routine != null) {
@@ -358,6 +391,7 @@ class MainActivity : Activity() {
         addView(card().apply {
             addView(label("Exercício", 13f, C.muted))
             addView(ex, params(t = 6, h = dp(48)))
+            addView(sug, params(t = 8))
             addView(label("Carga (kg)", 13f, C.muted), params(t = 14))
             addView(stepper(kg, 2.5, true), params(t = 6))
             addView(label("Repetições", 13f, C.muted), params(t = 14))
@@ -650,7 +684,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startRoutine(r: Routine) {
+    internal fun startRoutine(r: Routine) {
         if (db.openSession() != null) {
             toast("Já existe um treino em andamento. Finalize-o antes.")
             return

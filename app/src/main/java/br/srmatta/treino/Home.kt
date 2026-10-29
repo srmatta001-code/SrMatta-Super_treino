@@ -262,6 +262,7 @@ private fun LinearLayout.pair(a: View, b: View) {
 }
 
 private fun LinearLayout.summaryInto(a: MainActivity) {
+    addView(a.coachCard(), a.params(b = 12))
     val t = a.db.totals()
     if (t.sessions == 0) {
         addView(a.card().apply {

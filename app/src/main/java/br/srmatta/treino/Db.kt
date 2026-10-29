@@ -166,6 +166,32 @@ class Db(ctx: Context) : SQLiteOpenHelper(ctx, "srmatta.db", null, 3) {
             arrayOf(exercise)
         ) { it.getLong(0) to it.getDouble(1) }
 
+    // ---------- Treinador ----------
+
+    /** Séries (repetições, carga) do último treino finalizado que teve o exercício. */
+    fun lastSessionSets(exercise: String): List<Pair<Int, Double>> =
+        query(
+            "SELECT t.reps, t.weight FROM sets t JOIN session s ON s.id = t.session_id " +
+                "WHERE t.exercise = ? COLLATE NOCASE AND s.ended IS NOT NULL AND s.id = (" +
+                "SELECT MAX(s2.id) FROM session s2 JOIN sets t2 ON t2.session_id = s2.id " +
+                "WHERE t2.exercise = ? COLLATE NOCASE AND s2.ended IS NOT NULL) ORDER BY t.id",
+            arrayOf(exercise, exercise)
+        ) { it.getInt(0) to it.getDouble(1) }
+
+    /** Data do último treino de cada exercício. */
+    fun lastTrainedByExercise(): List<Pair<String, Long>> =
+        query(
+            "SELECT t.exercise, MAX(s.started) FROM sets t JOIN session s ON s.id = t.session_id " +
+                "WHERE s.ended IS NOT NULL GROUP BY t.exercise"
+        ) { it.getString(0) to it.getLong(1) }
+
+    /** Tipos (nomes de rotina) de treinos finalizados desde a data. */
+    fun kindsSince(ms: Long): Set<String> =
+        query(
+            "SELECT DISTINCT kind FROM session WHERE ended IS NOT NULL AND kind IS NOT NULL AND started >= ?",
+            arrayOf(ms.toString())
+        ) { it.getString(0) }.toSet()
+
     // ---------- Estatísticas gerais ----------
 
     fun totals(): Totals {

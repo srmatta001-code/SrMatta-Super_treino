@@ -17,6 +17,8 @@ Aplicativo Android leve para registrar treinos de academia. Funciona 100% offlin
 | **Histórico** | Lista dos treinos com tipo, duração, séries e volume. |
 | **Evolução** | Séries por músculo nos últimos 7 dias, gráfico do peso corporal e da carga por exercício. |
 
+**Treinador SrMatta (offline, sem IA de verdade):** no Treino e no Início ele sugere a rotina de hoje, avisa músculos parados há 7 dias ou mais e, ao escolher um exercício, sugere carga e repetições pela progressão dupla (8 a 12 repetições).
+
 A biblioteca tem mais de 60 exercícios, cada um ligado a um grupo muscular. Estrutura dos planos inspirada nos treinos de hipertrofia.org.
 
 ## Como gerar o APK
