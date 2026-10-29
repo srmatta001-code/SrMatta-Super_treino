@@ -67,9 +67,14 @@ jobs:
           name: SrMattaTreino-apk
           path: SrMattaTreino.apk
 
+      - name: Obter código da versão
+        id: meta
+        run: echo "version_code=$(sed -n 's/.*versionCode = \\([0-9]*\\).*/\\1/p' app/build.gradle.kts | head -n1)" >> "$GITHUB_OUTPUT"
+
       - name: Publicar Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: SrMatta Treino (build ${{ github.run_number }})
+          body: "versionCode=${{ steps.meta.outputs.version_code }}"
           files: SrMattaTreino.apk
