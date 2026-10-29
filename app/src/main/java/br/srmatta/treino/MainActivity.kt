@@ -326,6 +326,8 @@ class MainActivity : Activity() {
             ex.setText(lastSet.exercise)
             kg.setText(fmtInput(lastSet.weight))
             reps.setText(lastSet.reps.toString())
+        } else {
+            reps.setText("10")
         }
         ex.setOnItemClickListener { _, _, pos, _ ->
             val name = ex.adapter.getItem(pos) as String
@@ -727,14 +729,28 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun pickExercises(r: Routine?, name: String) {
-        val all = (DEFAULT_EXERCISES + db.exerciseNames() + (r?.exercises ?: emptyList()))
-            .distinctBy { it.lowercase() }
-        val chosen = r?.exercises?.map { it.lowercase() }?.toSet() ?: emptySet()
+    private fun pickExercises(r: Routine?, name: String, extra: List<String> = emptyList()) {
+        val all = (DEFAULT_EXERCISES + db.exerciseNames() + (r?.exercises ?: emptyList()) + extra)
+            .distinctBy { it.trim().lowercase() }
+        val chosen = (r?.exercises.orEmpty() + extra).map { it.lowercase() }.toSet()
         val checked = BooleanArray(all.size) { all[it].lowercase() in chosen }
         AlertDialog.Builder(this)
             .setTitle("Exercícios de $name")
             .setMultiChoiceItems(all.toTypedArray(), checked) { _, i, c -> checked[i] = c }
+            .setNeutralButton("Adicionar exercício") { _, _ ->
+                val field = styled(EditText(this), "Nome do novo exercício")
+                field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                AlertDialog.Builder(this)
+                    .setTitle("Novo exercício")
+                    .setView(field)
+                    .setPositiveButton("Adicionar") { _, _ ->
+                        val value = field.text.toString().trim().replace(Regex("\\s+"), " ")
+                        if (value.isBlank()) toast("Digite o nome do exercício")
+                        else pickExercises(r, name, extra + value)
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
             .setPositiveButton("Salvar") { _, _ ->
                 val picked = all.filterIndexed { i, _ -> checked[i] }
                 if (picked.isEmpty()) {
