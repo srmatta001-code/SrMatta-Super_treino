@@ -76,6 +76,8 @@ private fun MainActivity.takeWorkoutPhoto(id: Long) {
     summaryPhotoSessionId = id
     try {
         val file = File(cacheDir, "camera_$id.jpg")
+        if (file.exists()) file.delete()
+        file.createNewFile()
         pendingSummaryCameraPath = file.absolutePath
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
