@@ -15,6 +15,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.Vibrator
+import android.os.VibratorManager
+import android.os.VibrationEffect
+import android.media.AudioAttributes
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -244,11 +247,33 @@ class MainActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun buzz() {
+    private fun testVibration() {
         try {
-            val vib = getSystemService(VIBRATOR_SERVICE) as Vibrator
-            vib.vibrate(longArrayOf(0, 250, 120, 250), -1)
-        } catch (_: Exception) {
+            val vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
+                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            if (!vibrator.hasVibrator()) {
+                toast("O Android informou que este aparelho não possui vibrador.")
+                return
+            }
+            val pattern = longArrayOf(0, 350, 150, 350, 150, 550)
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                val effect = VibrationEffect.createWaveform(pattern, -1)
+                val attributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                vibrator.vibrate(effect, attributes)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(pattern, -1)
+            }
+            toast("Comando de vibração enviado.")
+        } catch (e: Exception) {
+            toast("Não foi possível vibrar: ${e.message ?: "verifique as configurações do aparelho"}")
         }
     }
 
@@ -869,7 +894,7 @@ class MainActivity : Activity() {
         val packageInfo = packageManager.getPackageInfo(packageName, 0)
         val installedCode = if (android.os.Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong()
         addView(card().apply {
-            addView(label("SrMatta Super Treino", 17f, C.text, true))
+            addView(label("PROJETO MONSTRO", 17f, C.text, true))
             addView(label("Versão ${packageInfo.versionName} (código $installedCode)", 14f, C.muted), params(t = 8))
             addView(label("Confira se existe uma versão mais recente do aplicativo.", 13f, C.muted), params(t = 8))
             addView(primaryButton("Verificar atualizações") { checkForUpdates() }, params(t = 14))
@@ -877,7 +902,8 @@ class MainActivity : Activity() {
 
         addView(card().apply {
             addView(label("Alarme de descanso", 16f, C.text, true))
-            addView(label("O aviso usa um toque eletrônico próprio SrMatta e vibração quando o descanso termina.", 13f, C.muted), params(t = 8))
+            addView(label("O aviso usa um toque eletrônico e vibração quando o descanso termina.", 13f, C.muted), params(t = 8))
+            addView(secondaryButton("Testar vibração agora") { testVibration() }, params(t = 10))
         }, params(b = 12))
 
         addView(card().apply {
@@ -921,7 +947,7 @@ class MainActivity : Activity() {
                 var apkUrl: String? = null
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
-                    if (asset.optString("name") == "SrMattaTreino.apk") apkUrl = asset.optString("browser_download_url")
+                    if (asset.optString("name") == "Projeto-Monstro.apk") apkUrl = asset.optString("browser_download_url")
                 }
                 if (apkUrl.isNullOrBlank()) throw IllegalStateException("APK não encontrado na publicação.")
                 runOnUiThread {
