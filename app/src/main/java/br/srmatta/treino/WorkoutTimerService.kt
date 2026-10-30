@@ -23,6 +23,7 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.content.pm.ServiceInfo
+import kotlin.math.sin
 
 /** Cronômetros persistentes: continuam ativos com o app minimizado ou tela bloqueada. */
 class WorkoutTimerService : Service() {
