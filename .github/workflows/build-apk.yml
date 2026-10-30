@@ -57,15 +57,15 @@ jobs:
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
 
       - name: Renomear APK
-        run: cp app/build/outputs/apk/release/app-release.apk SrMattaTreino.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Projeto-Monstro.apk
 
       - name: Mostrar tamanho
-        run: ls -lh SrMattaTreino.apk
+        run: ls -lh Projeto-Monstro.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SrMattaTreino-apk
-          path: SrMattaTreino.apk
+          name: Projeto-Monstro-apk
+          path: Projeto-Monstro.apk
 
       - name: Obter código da versão
         id: meta
@@ -75,6 +75,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: SrMatta Treino (build ${{ github.run_number }})
+          name: Projeto Monstro (build ${{ github.run_number }})
           body: "versionCode=${{ steps.meta.outputs.version_code }}"
-          files: SrMattaTreino.apk
+          files: Projeto-Monstro.apk
