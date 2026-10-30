@@ -37,7 +37,7 @@ class WorkoutTimerService : Service() {
         const val PREF_REST_END = "rest_end_elapsed"
         const val PREF_REST_DONE = "rest_done"
         private const val CHANNEL_TIMER = "workout_timer"
-        private const val CHANNEL_ALERT = "workout_alert_v3_srmatta"
+        private const val CHANNEL_ALERT = "workout_alert_v4_projeto_monstro"
         private const val NOTIFICATION_ID = 4810
         private const val ALERT_ID = 4811
     }
@@ -69,7 +69,7 @@ class WorkoutTimerService : Service() {
             setFlags(MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
             isActive = true
             setMetadata(MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, "SrMatta Super Treino")
+                .putString(MediaMetadata.METADATA_KEY_TITLE, "PROJETO MONSTRO")
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, "Cronômetros do treino")
                 .build())
             setPlaybackState(PlaybackState.Builder()
@@ -146,7 +146,7 @@ class WorkoutTimerService : Service() {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setShowBadge(false)
             }
-            val alert = NotificationChannel(CHANNEL_ALERT, "Alarme de descanso SrMatta", NotificationManager.IMPORTANCE_HIGH).apply {
+            val alert = NotificationChannel(CHANNEL_ALERT, "Alarme de descanso - Projeto Monstro", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Aviso sonoro, vibração e popup ao terminar o descanso"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
@@ -217,23 +217,39 @@ class WorkoutTimerService : Service() {
             try {
                 if (toneGenerator == null) toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 90)
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 1100)
-            } catch (_: Exception) { }
-            try {
-                val vibrator = if (Build.VERSION.SDK_INT >= 31) {
-                    (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-                } else {
-                    @Suppress("DEPRECATION")
-                    getSystemService(VIBRATOR_SERVICE) as Vibrator
-                }
-                if (vibrator.hasVibrator()) {
-                    val pattern = longArrayOf(0, 450, 180, 450, 180, 650)
-                    if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
-                    else {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(pattern, -1)
-                    }
-                }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.e("ProjetoMonstro", "Falha ao tocar alarme", e)
+            }
+            vibrateForRestEnd()
+        }
+    }
+
+    private fun vibrateForRestEnd() {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= 31) {
+                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            if (!vibrator.hasVibrator()) {
+                android.util.Log.w("ProjetoMonstro", "Este aparelho informa que não possui vibrador")
+                return
+            }
+            val pattern = longArrayOf(0, 500, 180, 500, 180, 750)
+            if (Build.VERSION.SDK_INT >= 26) {
+                val effect = VibrationEffect.createWaveform(pattern, -1)
+                val attributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                vibrator.vibrate(effect, attributes)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(pattern, -1)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ProjetoMonstro", "Falha ao vibrar", e)
         }
     }
 
