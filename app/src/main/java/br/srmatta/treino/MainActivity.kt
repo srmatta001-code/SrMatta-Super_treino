@@ -18,6 +18,8 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.os.VibrationEffect
 import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -95,6 +97,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(C.bg)
         }
+        root.addView(brandHeader(), LinearLayout.LayoutParams(MP, WRAP))
         content = FrameLayout(this)
         root.addView(content, LinearLayout.LayoutParams(MP, 0, 1f))
         root.addView(buildTimerBar(), LinearLayout.LayoutParams(MP, WRAP))
@@ -188,6 +191,16 @@ class MainActivity : Activity() {
     }
 
     internal fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    private fun brandHeader(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(18), dp(9), dp(18), dp(8))
+        setBackgroundColor(C.card)
+        addView(label("PROJETO MONSTRO", 20f, C.text, true))
+        addView(label("SrMatta- IA", 15f, C.blueLight, true), LinearLayout.LayoutParams(MP, WRAP).apply {
+            topMargin = dp(1)
+        })
+    }
 
     // Barra fixa dos cronômetros: permanece visível em todas as abas.
     private fun buildTimerBar(): View {
@@ -902,16 +915,87 @@ class MainActivity : Activity() {
 
         addView(card().apply {
             addView(label("Alarme de descanso", 16f, C.text, true))
-            addView(label("O aviso usa um toque eletrônico e vibração quando o descanso termina.", 13f, C.muted), params(t = 8))
+            addView(label("Corneta de treino e vibração ao terminar o descanso.", 13f, C.muted), params(t = 8))
             addView(secondaryButton("Testar vibração agora") { testVibration() }, params(t = 10))
         }, params(b = 12))
 
         addView(card().apply {
-            addView(label("Contato", 16f, C.text, true))
-            addView(secondaryButton("Ajuda por e-mail") { sendSupportEmail("Ajuda - SrMatta Super Treino") }, params(t = 10))
-            addView(secondaryButton("Suporte por e-mail") { sendSupportEmail("Suporte - SrMatta Super Treino") }, params(t = 8))
-            addView(label("srmatta001@gmail.com", 13f, C.muted), params(t = 8))
+            addView(label("Dúvidas", 16f, C.text, true))
+            addView(label("Envie sua pergunta e escolha como prefere receber a resposta.", 13f, C.muted), params(t = 8))
+            addView(primaryButton("Enviar uma dúvida") { showDoubtForm() }, params(t = 12))
         }, params(b = 12))
+    }
+
+    private fun showDoubtForm() {
+        val personName = styled(EditText(this), "Seu nome").apply {
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        }
+        val question = styled(EditText(this), "Digite sua dúvida").apply {
+            minLines = 4
+            maxLines = 6
+            gravity = Gravity.TOP or Gravity.START
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        }
+        val responseMethod = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("E-mail", "WhatsApp"))
+        }
+        val contact = styled(EditText(this), "Seu e-mail para resposta").apply { setSingleLine(true) }
+        responseMethod.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position == 0) {
+                    contact.hint = "Seu e-mail para resposta"
+                    contact.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                } else {
+                    contact.hint = "Seu WhatsApp com DDD"
+                    contact.inputType = InputType.TYPE_CLASS_PHONE
+                }
+                contact.text?.clear()
+            }
+        }
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(label("Nome", 13f, C.muted))
+            addView(personName, params(h = dp(48), t = 5))
+            addView(label("Sua dúvida", 13f, C.muted), params(t = 12))
+            addView(question, params(h = dp(112), t = 5))
+            addView(label("Como deseja receber a resposta?", 13f, C.muted), params(t = 12))
+            addView(responseMethod, params(h = dp(48), t = 4))
+            addView(contact, params(h = dp(48), t = 8, b = 8))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enviar dúvida")
+            .setView(ScrollView(this).apply { addView(form) })
+            .setPositiveButton("Continuar") { _, _ ->
+                val name = personName.text.toString().trim()
+                val doubt = question.text.toString().trim()
+                val method = responseMethod.selectedItem.toString()
+                val replyTo = contact.text.toString().trim()
+                val validContact = if (method == "E-mail") replyTo.contains("@") && replyTo.substringAfter("@").contains(".")
+                    else replyTo.filter { it.isDigit() }.length >= 10
+                if (name.isBlank() || doubt.isBlank() || !validContact) {
+                    toast("Preencha nome, dúvida e um contato válido.")
+                } else {
+                    sendDoubtEmail(name, doubt, method, replyTo)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun sendDoubtEmail(name: String, doubt: String, method: String, replyTo: String) {
+        val body = "DÚVIDA — PROJETO MONSTRO\n\nNome: $name\nPergunta: $doubt\n\nResponder por: $method\nContato para resposta: $replyTo"
+        val mail = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:srmatta001@gmail.com")).apply {
+            putExtra(Intent.EXTRA_SUBJECT, "Dúvida recebida pelo Projeto Monstro")
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        try {
+            startActivity(Intent.createChooser(mail, "Enviar dúvida por e-mail"))
+        } catch (_: Exception) {
+            toast("Nenhum aplicativo de e-mail configurado neste aparelho.")
+        }
     }
 
     private fun currentInstalledVersionCode(): Long {
