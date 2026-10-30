@@ -88,8 +88,9 @@ fun MainActivity.homePage(): View = page("") {
 // ---------- Cabeçalho: foto, logo, idade e peso ----------
 
 private fun MainActivity.logoText(size: Float): TextView {
-    val t = label("SrMatta", size, C.text, true)
-    t.paint.shader = LinearGradient(0f, 0f, t.paint.measureText("SrMatta"), 0f, C.blue, C.purple, Shader.TileMode.CLAMP)
+    val title = "PROJETO MONSTRO"
+    val t = label(title, size, C.text, true)
+    t.paint.shader = LinearGradient(0f, 0f, t.paint.measureText(title), 0f, C.blue, C.purple, Shader.TileMode.CLAMP)
     return t
 }
 
@@ -152,8 +153,8 @@ private fun MainActivity.profileHeader(): LinearLayout {
     c.addView(avatar(), params(w = dp(84), h = dp(84), r = 16))
 
     val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    col.addView(logoText(30f))
-    col.addView(label("Treino", 13f, C.muted), params(t = -2))
+    col.addView(logoText(21f))
+    col.addView(label("SrMatta- IA", 10f, C.muted, true), params(t = 1))
 
     val age = ageOf(prefs.getString("birth", "") ?: "")
     val kg = db.bodyAll().lastOrNull()?.kg
