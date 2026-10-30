@@ -8,9 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.RingtoneManager
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.VibratorManager
 import android.media.session.MediaSession
 import android.media.MediaMetadata
@@ -47,7 +47,7 @@ class WorkoutTimerService : Service() {
     private lateinit var mediaSession: MediaSession
     private val prefs by lazy { getSharedPreferences("srmatta", Context.MODE_PRIVATE) }
     private var sessionStart = 0L
-    private var toneGenerator: ToneGenerator? = null
+    private var hornTrack: AudioTrack? = null
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -174,7 +174,7 @@ class WorkoutTimerService : Service() {
         val stopPending = PendingIntent.getService(this, 2, stop, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_TIMER) else Notification.Builder(this)
         return b.setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("SrMatta Super Treino")
+            .setContentTitle("PROJETO MONSTRO")
             .setContentText(line)
             .setSubText("Cronômetros ativos • toque para abrir")
             .setContentIntent(openPending)
@@ -205,7 +205,7 @@ class WorkoutTimerService : Service() {
             val pending = PendingIntent.getActivity(this, 3, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ALERT) else Notification.Builder(this)
             val alertBuilder = b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("Descanso concluído!")
+                .setContentTitle("PROJETO MONSTRO • Descanso concluído!")
                 .setContentText("Hora da próxima série. Toque para voltar ao treino.")
                 .setContentIntent(pending)
                 .setAutoCancel(true)
@@ -213,14 +213,78 @@ class WorkoutTimerService : Service() {
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
             if (Build.VERSION.SDK_INT < 26) alertBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
             manager.notify(ALERT_ID, alertBuilder.build())
-            // Toque eletrônico original e vibração acionados diretamente pelo serviço.
-            try {
-                if (toneGenerator == null) toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 90)
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 1100)
-            } catch (e: Exception) {
-                android.util.Log.e("ProjetoMonstro", "Falha ao tocar alarme", e)
-            }
+            // Som original em três rajadas, com timbre de corneta de estádio.
+            playWorkoutHorn()
             vibrateForRestEnd()
+        }
+    }
+
+    private fun playWorkoutHorn() {
+        try {
+            hornTrack?.release()
+            val sampleRate = 44100
+            val durationSeconds = 1.55
+            val count = (sampleRate * durationSeconds).toInt()
+            val samples = ShortArray(count)
+            for (i in 0 until count) {
+                val time = i.toDouble() / sampleRate
+                val pulseStart = when {
+                    time < 0.42 -> 0.0
+                    time in 0.52..0.91 -> 0.52
+                    time >= 1.01 -> 1.01
+                    else -> -1.0
+                }
+                if (pulseStart < 0.0) continue
+                val local = time - pulseStart
+                val pulseLength = when (pulseStart) {
+                    0.0 -> 0.42
+                    0.52 -> 0.39
+                    else -> 0.54
+                }
+                val attack = (local / 0.025).coerceIn(0.0, 1.0)
+                val release = ((pulseLength - local) / 0.09).coerceIn(0.0, 1.0)
+                val envelope = minOf(attack, release)
+                val base = when (pulseStart) {
+                    0.0 -> 220.0
+                    0.52 -> 207.65
+                    else -> 196.0
+                }
+                val phase = 2.0 * Math.PI * time
+                val chord = sin(phase * base) +
+                    0.72 * sin(phase * (base * 1.26)) +
+                    0.62 * sin(phase * (base * 1.5)) +
+                    0.24 * sin(phase * (base * 2.0))
+                val value = (chord / 2.58 * envelope * 0.92).coerceIn(-1.0, 1.0)
+                samples[i] = (value * Short.MAX_VALUE).toInt().toShort()
+            }
+            val format = AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(sampleRate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build()
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(attributes)
+                .setAudioFormat(format)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(samples.size * 2)
+                .build()
+            hornTrack = track
+            track.write(samples, 0, samples.size)
+            track.setVolume(0.95f)
+            track.play()
+            handler.postDelayed({
+                try {
+                    track.stop()
+                    track.release()
+                    if (hornTrack === track) hornTrack = null
+                } catch (_: Exception) {}
+            }, 1800L)
+        } catch (e: Exception) {
+            android.util.Log.e("ProjetoMonstro", "Falha ao tocar corneta", e)
         }
     }
 
@@ -272,8 +336,8 @@ class WorkoutTimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(ticker)
-        toneGenerator?.release()
-        toneGenerator = null
+        hornTrack?.release()
+        hornTrack = null
         if (::mediaSession.isInitialized) {
             mediaSession.isActive = false
             mediaSession.release()
