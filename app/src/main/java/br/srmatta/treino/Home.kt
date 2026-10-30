@@ -153,8 +153,10 @@ private fun MainActivity.profileHeader(): LinearLayout {
     c.addView(avatar(), params(w = dp(84), h = dp(84), r = 16))
 
     val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    col.addView(logoText(21f))
-    col.addView(label("SrMatta- IA", 10f, C.muted, true), params(t = 1))
+    val profileName = prefs.getString("profile_name", "")?.trim().orEmpty()
+    if (profileName.isNotEmpty()) {
+        col.addView(label(profileName, 17f, C.text, true))
+    }
 
     val age = ageOf(prefs.getString("birth", "") ?: "")
     val kg = db.bodyAll().lastOrNull()?.kg
@@ -162,8 +164,8 @@ private fun MainActivity.profileHeader(): LinearLayout {
     val parts = ArrayList<String>()
     parts.add(if (age != null) "$age anos" else "idade —")
     parts.add(if (kg != null) "${fmtNum(kg)} kg" else "peso —")
-    if (h > 0) parts.add(String.format(PT, "%.2f m", h / 100.0))
-    col.addView(label(parts.joinToString("  ·  "), 14f, C.text, true), params(t = 8))
+    parts.add(if (h > 0) String.format(PT, "%.2f m", h / 100.0) else "altura —")
+    col.addView(label(parts.joinToString("  ·  "), 13f, C.text, true), params(t = if (profileName.isNotEmpty()) 6 else 0))
     col.addView(smallButton("Editar perfil") { editProfile() }, params(w = WRAP, t = 10))
     c.addView(col, params(w = 0, weight = 1f))
     return c
